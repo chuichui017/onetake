@@ -28,7 +28,7 @@ export function Toolbar() {
 
   return (
     <aside
-      className="flex flex-col items-center gap-1 py-3"
+      className="app-toolbar flex flex-col items-center gap-1 py-3"
       style={{
         width: 56,
         borderRight: '1px solid var(--border)',

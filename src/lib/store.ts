@@ -115,7 +115,10 @@ interface PersistedTele {
   teleText: string;
   panelCollapsed: PanelCollapsedMap;
   stageColor: string;
+  panelHidden: boolean;
 }
+
+export type RecordMode = 'board-only' | 'with-bg';
 
 interface StudioState extends PersistedTele {
   scene: SceneId;
@@ -134,6 +137,14 @@ interface StudioState extends PersistedTele {
   videoPlaybackRate: number;
   videoTransform: VideoTransform;
   recording: boolean;
+  isRecording: boolean;
+  recordingStartTime: number | null;
+  recordingDuration: number;
+  recordMode: RecordMode;
+  showRecordModeDialog: boolean;
+  countdownValue: number | null;
+  _recorderStop: (() => Promise<Blob>) | null;
+  _recordingTimer: ReturnType<typeof setInterval> | null;
   cameraState: CameraState;
   telePlaying: boolean;
   teleCollapsed: boolean;
@@ -165,6 +176,11 @@ interface StudioState extends PersistedTele {
   resetVideoTransform: () => void;
   removeVideo: () => void;
   toggleRecording: () => void;
+  togglePanelHidden: () => void;
+  openRecordModeDialog: () => void;
+  closeRecordModeDialog: () => void;
+  startRecordingAction: (mode: RecordMode) => Promise<void>;
+  stopRecordingAction: () => Promise<void>;
   setCameraState: (s: CameraState) => void;
   startCameraPreview: () => Promise<void>;
   stopCamera: () => void;
@@ -228,6 +244,7 @@ const persisted = (s: StudioState): PersistedTele => ({
   teleText: s.teleText,
   panelCollapsed: s.panelCollapsed,
   stageColor: s.stageColor,
+  panelHidden: s.panelHidden,
 });
 
 const DEFAULT_PANEL_COLLAPSED: PanelCollapsedMap = {
@@ -257,6 +274,15 @@ export const useStudio = create<StudioState>()(
       videoPlaybackRate: 1,
       videoTransform: { ...DEFAULT_VIDEO_TRANSFORM },
       recording: false,
+      isRecording: false,
+      recordingStartTime: null,
+      recordingDuration: 0,
+      recordMode: 'with-bg',
+      showRecordModeDialog: false,
+      countdownValue: null,
+      _recorderStop: null,
+      _recordingTimer: null,
+      panelHidden: false,
       cameraState: 'off',
       telePlaying: false,
       telePos: null,
@@ -435,6 +461,102 @@ export const useStudio = create<StudioState>()(
           set({
             recording: false,
             cameraState: hasStream ? 'preview' : 'off',
+          });
+        }
+      },
+      togglePanelHidden: () => set((st) => ({ panelHidden: !st.panelHidden })),
+      openRecordModeDialog: () => set({ showRecordModeDialog: true }),
+      closeRecordModeDialog: () => set({ showRecordModeDialog: false }),
+      startRecordingAction: async (mode) => {
+        const { isRecordingSupported } = await import('./recorder');
+        const check = isRecordingSupported();
+        if (!check.supported) {
+          get().showToast(check.reason || '录制不可用');
+          return;
+        }
+
+        set({ recordMode: mode, showRecordModeDialog: false });
+
+        document.body.classList.add('recording-mode', `recording-${mode}`);
+
+        for (let i = 3; i >= 1; i--) {
+          set({ countdownValue: i });
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+        set({ countdownValue: null });
+
+        const { startRecording } = await import('./recorder');
+        const webcamEl = document.querySelector(
+          'video.webcam-feed'
+        ) as HTMLVideoElement | null;
+
+        try {
+          const { stop } = await startRecording(webcamEl, () => {
+            if (get().isRecording) void get().stopRecordingAction();
+          });
+
+          const timer = setInterval(() => {
+            const s = get().recordingStartTime;
+            if (s === null) return;
+            set({ recordingDuration: Math.floor((Date.now() - s) / 1000) });
+          }, 500);
+
+          set({
+            isRecording: true,
+            recordingStartTime: Date.now(),
+            recordingDuration: 0,
+            _recorderStop: stop,
+            _recordingTimer: timer,
+          });
+          get().showToast('录制已开始');
+        } catch (err) {
+          document.body.classList.remove(
+            'recording-mode',
+            'recording-board-only',
+            'recording-with-bg'
+          );
+          set({ countdownValue: null });
+
+          const e = err as { name?: string; message?: string };
+          if (e?.name === 'NotAllowedError') {
+            get().showToast('录制已取消');
+          } else {
+            get().showToast('录制启动失败：' + (e?.message || String(err)));
+          }
+        }
+      },
+      stopRecordingAction: async () => {
+        const { _recorderStop, _recordingTimer, recordingDuration } = get();
+        if (!_recorderStop) return;
+
+        if (_recordingTimer) clearInterval(_recordingTimer);
+
+        try {
+          const blob = await _recorderStop();
+          const { downloadBlob, generateFilename } = await import('./recorder');
+          downloadBlob(blob, generateFilename());
+
+          const m = Math.floor(recordingDuration / 60);
+          const s = recordingDuration % 60;
+          get().showToast(
+            `录制完成 · ${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+          );
+        } catch (err) {
+          console.error(err);
+          get().showToast('停止录制失败');
+        } finally {
+          document.body.classList.remove(
+            'recording-mode',
+            'recording-board-only',
+            'recording-with-bg'
+          );
+
+          set({
+            isRecording: false,
+            recordingStartTime: null,
+            recordingDuration: 0,
+            _recorderStop: null,
+            _recordingTimer: null,
           });
         }
       },

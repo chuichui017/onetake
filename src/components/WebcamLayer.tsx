@@ -269,7 +269,7 @@ export function WebcamLayer({
         }
       >
         {ready ? (
-          <video ref={videoRef} autoPlay playsInline muted />
+          <video ref={videoRef} autoPlay playsInline muted className="webcam-feed" />
         ) : (
           shape !== 'hidden' && (
             <>

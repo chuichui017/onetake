@@ -1,6 +1,8 @@
 'use client';
 
 import {
+  ChevronLeft,
+  ChevronRight,
   Download,
   PictureInPicture2,
   Settings,
@@ -14,17 +16,21 @@ interface HeaderProps {
 }
 
 export function Header({ onOpenFloating, floatingActive }: HeaderProps) {
-  const recording = useStudio((s) => s.recording);
+  const isRecording = useStudio((s) => s.isRecording);
+  const recordingDuration = useStudio((s) => s.recordingDuration);
   const teleprompterVisible = useStudio((s) => s.teleprompterVisible);
   const toggleTeleprompterVisible = useStudio(
     (s) => s.toggleTeleprompterVisible
   );
-  const toggleRecording = useStudio((s) => s.toggleRecording);
+  const panelHidden = useStudio((s) => s.panelHidden);
+  const togglePanelHidden = useStudio((s) => s.togglePanelHidden);
+  const openRecordModeDialog = useStudio((s) => s.openRecordModeDialog);
+  const stopRecordingAction = useStudio((s) => s.stopRecordingAction);
   const showToast = useStudio((s) => s.showToast);
 
   return (
     <header
-      className="flex items-center justify-between px-4"
+      className="app-header flex items-center justify-between px-4"
       style={{
         height: 52,
         borderBottom: '1px solid var(--border)',
@@ -72,6 +78,14 @@ export function Header({ onOpenFloating, floatingActive }: HeaderProps) {
 
       <div className="flex items-center gap-1">
         <button
+          className="header-hide-panel-btn"
+          onClick={togglePanelHidden}
+          title={panelHidden ? '展开面板' : '隐藏面板'}
+          aria-label="toggle right panel"
+        >
+          {panelHidden ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+        </button>
+        <button
           id="toggleTeleprompter"
           className={`header-btn${teleprompterVisible ? ' active' : ''}`}
           onClick={toggleTeleprompterVisible}
@@ -111,11 +125,24 @@ export function Header({ onOpenFloating, floatingActive }: HeaderProps) {
         </button>
         <div style={{ width: 8 }} />
         <button
-          className={`record-btn${recording ? ' recording' : ''}`}
-          onClick={toggleRecording}
+          className={`record-btn${isRecording ? ' recording' : ''}`}
+          onClick={isRecording ? stopRecordingAction : openRecordModeDialog}
         >
-          <span className="record-dot" />
-          <span>{recording ? '停止' : '开始录制'}</span>
+          {isRecording ? (
+            <>
+              <span className="rec-dot-pulse" />
+              <span className="rec-time-display">
+                {String(Math.floor(recordingDuration / 60)).padStart(2, '0')}:
+                {String(recordingDuration % 60).padStart(2, '0')}
+              </span>
+              <span>停止录制</span>
+            </>
+          ) : (
+            <>
+              <span className="record-dot" />
+              <span>开始录制</span>
+            </>
+          )}
         </button>
       </div>
     </header>

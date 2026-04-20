@@ -5,6 +5,7 @@ import { useCamera } from '@/hooks/useCamera';
 import { useScreenShare } from '@/hooks/useScreenShare';
 import { useHotkeys } from '@/hooks/useHotkeys';
 import { useFloatingStudio } from '@/hooks/useFloatingStudio';
+import { useStudio } from '@/lib/store';
 import { Header } from './Header';
 import { Toolbar } from './Toolbar';
 import { Stage } from './Stage';
@@ -12,12 +13,15 @@ import { RightPanel } from './RightPanel';
 import { ScenesBar } from './ScenesBar';
 import { Teleprompter } from './Teleprompter';
 import { Toast } from './Toast';
+import { RecordModeDialog } from './RecordModeDialog';
+import { RecordCountdown } from './RecordCountdown';
 
 export function Studio() {
   useHotkeys();
   const { stream } = useCamera();
   const { request: requestScreen } = useScreenShare();
   const floating = useFloatingStudio(stream);
+  const panelHidden = useStudio((s) => s.panelHidden);
 
   useEffect(() => {
     // Block the browser's native page zoom: trackpad pinch arrives as
@@ -40,6 +44,17 @@ export function Studio() {
     };
   }, []);
 
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (useStudio.getState().isRecording) {
+        e.preventDefault();
+        e.returnValue = '正在录制中，离开将丢失内容';
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, []);
+
   return (
     <>
       <div className="flex flex-col h-screen">
@@ -53,8 +68,9 @@ export function Studio() {
           className="min-h-0"
           style={{
             display: 'grid',
-            gridTemplateColumns: '56px 1fr 288px',
+            gridTemplateColumns: panelHidden ? '56px 1fr 0px' : '56px 1fr 288px',
             flex: 1,
+            transition: 'grid-template-columns 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           }}
         >
           <Toolbar />
@@ -62,11 +78,25 @@ export function Studio() {
             <Stage onRequestScreen={requestScreen} />
             <ScenesBar onRequestScreen={requestScreen} />
           </div>
-          <RightPanel />
+          <div
+            className="right-panel-wrap"
+            style={{
+              overflow: 'hidden',
+              opacity: panelHidden ? 0 : 1,
+              transform: panelHidden ? 'translateX(20px)' : 'translateX(0)',
+              pointerEvents: panelHidden ? 'none' : 'auto',
+              transition:
+                'opacity 0.25s, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            }}
+          >
+            <RightPanel />
+          </div>
         </main>
       </div>
       <Teleprompter />
       <Toast />
+      <RecordModeDialog />
+      <RecordCountdown />
     </>
   );
 }
