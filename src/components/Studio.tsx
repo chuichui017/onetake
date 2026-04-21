@@ -13,7 +13,6 @@ import { RightPanel } from './RightPanel';
 import { ScenesBar } from './ScenesBar';
 import { Teleprompter } from './Teleprompter';
 import { Toast } from './Toast';
-import { RecordModeDialog } from './RecordModeDialog';
 import { RecordCountdown } from './RecordCountdown';
 
 export function Studio() {
@@ -95,7 +94,6 @@ export function Studio() {
       </div>
       <Teleprompter />
       <Toast />
-      <RecordModeDialog />
       <RecordCountdown />
     </>
   );

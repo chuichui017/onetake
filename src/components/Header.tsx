@@ -1,6 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -8,11 +10,57 @@ import {
   Settings,
   Type,
 } from 'lucide-react';
-import { useStudio } from '@/lib/store';
+import { useStudio, type CanvasSize } from '@/lib/store';
 
 interface HeaderProps {
   onOpenFloating: () => void;
   floatingActive: boolean;
+}
+
+const RATIOS: CanvasSize[] = ['9:16', '16:9', '3:4', '1:1'];
+
+function RatioQuickPicker() {
+  const canvasSize = useStudio((s) => s.canvasSize);
+  const setCanvasSize = useStudio((s) => s.setCanvasSize);
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="ratio-picker">
+      <button
+        type="button"
+        className="ratio-picker-trigger"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        {canvasSize}
+        <ChevronDown size={12} />
+      </button>
+      {open && (
+        <>
+          <div
+            className="ratio-picker-backdrop"
+            onClick={() => setOpen(false)}
+          />
+          <div className="ratio-picker-menu" role="menu">
+            {RATIOS.map((r) => (
+              <button
+                key={r}
+                type="button"
+                className={`ratio-picker-item${r === canvasSize ? ' active' : ''}`}
+                onClick={() => {
+                  setCanvasSize(r);
+                  setOpen(false);
+                }}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 export function Header({ onOpenFloating, floatingActive }: HeaderProps) {
@@ -24,7 +72,7 @@ export function Header({ onOpenFloating, floatingActive }: HeaderProps) {
   );
   const panelHidden = useStudio((s) => s.panelHidden);
   const togglePanelHidden = useStudio((s) => s.togglePanelHidden);
-  const openRecordModeDialog = useStudio((s) => s.openRecordModeDialog);
+  const startRecordingAction = useStudio((s) => s.startRecordingAction);
   const stopRecordingAction = useStudio((s) => s.stopRecordingAction);
   const showToast = useStudio((s) => s.showToast);
 
@@ -124,9 +172,11 @@ export function Header({ onOpenFloating, floatingActive }: HeaderProps) {
           <span>设置</span>
         </button>
         <div style={{ width: 8 }} />
+        <RatioQuickPicker />
+        <div style={{ width: 6 }} />
         <button
           className={`record-btn${isRecording ? ' recording' : ''}`}
-          onClick={isRecording ? stopRecordingAction : openRecordModeDialog}
+          onClick={isRecording ? stopRecordingAction : startRecordingAction}
         >
           {isRecording ? (
             <>

@@ -2672,132 +2672,6 @@ body.theme-indigo .scene-btn:hover {
   border-color: #A1A1AA;
 }
 
-/* ═══════ 录制模式选择弹框 ═══════ */
-
-.record-dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-  display: grid;
-  place-items: center;
-  z-index: 9999;
-  animation: record-fade-in 0.2s;
-}
-
-@keyframes record-fade-in { from { opacity: 0 } to { opacity: 1 } }
-
-.record-dialog {
-  background: white;
-  border-radius: 20px;
-  padding: 28px;
-  width: 440px;
-  max-width: 90vw;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  animation: record-dialog-in 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-@keyframes record-dialog-in {
-  from { opacity: 0; transform: scale(0.95) translateY(8px) }
-  to { opacity: 1; transform: scale(1) translateY(0) }
-}
-
-.record-dialog-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #18181B;
-  margin-bottom: 6px;
-}
-
-.record-dialog-subtitle {
-  font-size: 13px;
-  color: #71717A;
-  margin-bottom: 20px;
-}
-
-.record-mode-options {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.record-mode-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 16px 12px;
-  background: #FAFAFA;
-  border: 2px solid transparent;
-  border-radius: 14px;
-  cursor: pointer;
-  font-family: inherit;
-  transition: all 0.15s;
-}
-
-.record-mode-card:hover {
-  background: white;
-  border-color: #18181B;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-.record-mode-preview {
-  width: 120px;
-  height: 80px;
-  border-radius: 8px;
-}
-
-.board-only-preview {
-  background: white;
-  border: 1px solid #E4E4E7;
-}
-
-.with-bg-preview {
-  background: linear-gradient(135deg, #A855F7 0%, #6366F1 100%);
-  padding: 10px;
-  display: grid;
-  place-items: center;
-}
-
-.preview-board-inner {
-  width: 100%;
-  height: 100%;
-  background: white;
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
-.record-mode-label {
-  font-size: 14px;
-  font-weight: 500;
-  color: #18181B;
-}
-
-.record-mode-desc {
-  font-size: 11px;
-  color: #71717A;
-}
-
-.record-dialog-cancel {
-  width: 100%;
-  padding: 10px;
-  background: transparent;
-  color: #71717A;
-  border: 1px solid #E4E4E7;
-  border-radius: 10px;
-  font-size: 13px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.record-dialog-cancel:hover {
-  background: #F4F4F5;
-  color: #18181B;
-}
-
 /* ═══════ 倒计时遮罩 ═══════ */
 .countdown-overlay {
   position: fixed;
@@ -2870,41 +2744,72 @@ body.theme-indigo .scene-btn:hover {
   font-size: 13px;
 }
 
-/* ═══════ 录制视角：隐藏所有非录制 UI ═══════ */
-body.recording-mode .app-header,
-body.recording-mode .app-toolbar,
-body.recording-mode .right-panel-wrap,
-body.recording-mode .bottom-bar,
-body.recording-mode .canvas-hint,
-body.recording-mode .canvas-zoom {
-  opacity: 0 !important;
-  pointer-events: none !important;
-  transition: opacity 0.3s ease !important;
+/* ═══════ Header 比例快捷选择器 ═══════ */
+.ratio-picker {
+  position: relative;
 }
 
-/* 仅画板模式：画板铺满整个视窗 */
-body.recording-board-only .stage-shell {
-  position: fixed !important;
-  inset: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  max-width: none !important;
-  max-height: none !important;
-  top: 0 !important;
-  left: 0 !important;
-  transform: none !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  border: none !important;
-  z-index: 9000 !important;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+.ratio-picker-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 36px;
+  padding: 0 10px;
+  background: transparent;
+  border: 1px solid #E4E4E7;
+  border-radius: 10px;
+  color: #18181B;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
 }
 
-/* 仅画板模式：隐藏画板外的背景层（点阵等） */
-body.recording-board-only .canvas-wrap {
-  background: #FFFFFF !important;
+.ratio-picker-trigger:hover {
+  background: #F9FAFB;
+  border-color: #A1A1AA;
 }
 
-body.recording-board-only .canvas-wrap.dot-grid::before {
-  opacity: 0 !important;
+.ratio-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
 }
+
+.ratio-picker-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: white;
+  border: 1px solid #E4E4E7;
+  border-radius: 10px;
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  z-index: 101;
+  min-width: 80px;
+}
+
+.ratio-picker-item {
+  width: 100%;
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  text-align: left;
+  font-family: inherit;
+  font-size: 13px;
+  color: #18181B;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.ratio-picker-item:hover {
+  background: #F4F4F5;
+}
+
+.ratio-picker-item.active {
+  background: #18181B;
+  color: white;
+}
+

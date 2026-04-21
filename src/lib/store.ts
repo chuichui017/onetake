@@ -118,8 +118,6 @@ interface PersistedTele {
   panelHidden: boolean;
 }
 
-export type RecordMode = 'board-only' | 'with-bg';
-
 interface StudioState extends PersistedTele {
   scene: SceneId;
   webcamShape: WebcamShape;
@@ -140,8 +138,6 @@ interface StudioState extends PersistedTele {
   isRecording: boolean;
   recordingStartTime: number | null;
   recordingDuration: number;
-  recordMode: RecordMode;
-  showRecordModeDialog: boolean;
   countdownValue: number | null;
   _recorderStop: (() => Promise<Blob>) | null;
   _recordingTimer: ReturnType<typeof setInterval> | null;
@@ -177,9 +173,7 @@ interface StudioState extends PersistedTele {
   removeVideo: () => void;
   toggleRecording: () => void;
   togglePanelHidden: () => void;
-  openRecordModeDialog: () => void;
-  closeRecordModeDialog: () => void;
-  startRecordingAction: (mode: RecordMode) => Promise<void>;
+  startRecordingAction: () => Promise<void>;
   stopRecordingAction: () => Promise<void>;
   setCameraState: (s: CameraState) => void;
   startCameraPreview: () => Promise<void>;
@@ -277,8 +271,6 @@ export const useStudio = create<StudioState>()(
       isRecording: false,
       recordingStartTime: null,
       recordingDuration: 0,
-      recordMode: 'with-bg',
-      showRecordModeDialog: false,
       countdownValue: null,
       _recorderStop: null,
       _recordingTimer: null,
@@ -465,9 +457,7 @@ export const useStudio = create<StudioState>()(
         }
       },
       togglePanelHidden: () => set((st) => ({ panelHidden: !st.panelHidden })),
-      openRecordModeDialog: () => set({ showRecordModeDialog: true }),
-      closeRecordModeDialog: () => set({ showRecordModeDialog: false }),
-      startRecordingAction: async (mode) => {
+      startRecordingAction: async () => {
         const { isRecordingSupported } = await import('./recorder');
         const check = isRecordingSupported();
         if (!check.supported) {
@@ -475,24 +465,80 @@ export const useStudio = create<StudioState>()(
           return;
         }
 
-        set({ recordMode: mode, showRecordModeDialog: false });
-
-        document.body.classList.add('recording-mode', `recording-${mode}`);
-
         for (let i = 3; i >= 1; i--) {
           set({ countdownValue: i });
           await new Promise((r) => setTimeout(r, 1000));
         }
         set({ countdownValue: null });
 
-        const { startRecording } = await import('./recorder');
+        const ratio = get().canvasSize;
+        const backgroundColor = get().stageColor;
+
+        const uploadedVideoEl = document.querySelector(
+          'video.uploaded-video'
+        ) as HTMLVideoElement | null;
         const webcamEl = document.querySelector(
           'video.webcam-feed'
         ) as HTMLVideoElement | null;
+        const stageEl = document.querySelector(
+          '.stage-shell'
+        ) as HTMLElement | null;
+
+        const { getResolutionForRatio, startCompositeRecording } = await import(
+          './recorder'
+        );
+        const { width: outW, height: outH } = getResolutionForRatio(ratio);
+
+        const shapeToOut = (
+          s: WebcamShape
+        ): 'circle' | 'rounded' | 'square' => {
+          if (s === 'circle') return 'circle';
+          if (s === 'square' || s === 'rect-h' || s === 'rect-v') return 'rounded';
+          return 'square';
+        };
+
+        const getVideoRect = () => {
+          if (get().bgSource !== 'video' || !uploadedVideoEl || !stageEl) return null;
+          const sRect = stageEl.getBoundingClientRect();
+          const vRect = uploadedVideoEl.getBoundingClientRect();
+          if (sRect.width === 0 || vRect.width === 0) return null;
+          const sx = outW / sRect.width;
+          const sy = outH / sRect.height;
+          return {
+            x: (vRect.left - sRect.left) * sx,
+            y: (vRect.top - sRect.top) * sy,
+            w: vRect.width * sx,
+            h: vRect.height * sy,
+            borderRadius: 0,
+          };
+        };
+
+        const getWebcamRect = () => {
+          if (!webcamEl || !stageEl) return null;
+          const shape = get().webcamShape;
+          if (shape === 'hidden') return null;
+          const sRect = stageEl.getBoundingClientRect();
+          const wRect = webcamEl.getBoundingClientRect();
+          if (sRect.width === 0 || wRect.width === 0) return null;
+          const sx = outW / sRect.width;
+          const sy = outH / sRect.height;
+          return {
+            x: (wRect.left - sRect.left) * sx,
+            y: (wRect.top - sRect.top) * sy,
+            w: wRect.width * sx,
+            h: wRect.height * sy,
+            shape: shapeToOut(shape),
+          };
+        };
 
         try {
-          const { stop } = await startRecording(webcamEl, () => {
-            if (get().isRecording) void get().stopRecordingAction();
+          const { stop } = await startCompositeRecording({
+            ratio,
+            backgroundColor,
+            uploadedVideoEl,
+            webcamVideoEl: webcamEl,
+            getVideoRect,
+            getWebcamRect,
           });
 
           const timer = setInterval(() => {
@@ -510,11 +556,6 @@ export const useStudio = create<StudioState>()(
           });
           get().showToast('录制已开始');
         } catch (err) {
-          document.body.classList.remove(
-            'recording-mode',
-            'recording-board-only',
-            'recording-with-bg'
-          );
           set({ countdownValue: null });
 
           const e = err as { name?: string; message?: string };
@@ -545,12 +586,6 @@ export const useStudio = create<StudioState>()(
           console.error(err);
           get().showToast('停止录制失败');
         } finally {
-          document.body.classList.remove(
-            'recording-mode',
-            'recording-board-only',
-            'recording-with-bg'
-          );
-
           set({
             isRecording: false,
             recordingStartTime: null,
@@ -720,13 +755,13 @@ if (typeof window !== 'undefined') {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (window as any).__debugLayers = () => {
     const layers = useStudio.getState().layers;
-    // eslint-disable-next-line no-console
+     
     console.table(
       layers.map((l) => ({
         id: l.id,
         type: l.type,
         visible: l.visible,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         'source.kind': l.source.kind,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         'source.value': (l.source as any).value ?? '-',

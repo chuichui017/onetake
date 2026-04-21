@@ -1,15 +1,58 @@
-export async function startRecording(
-  webcamVideoEl: HTMLVideoElement | null,
-  onAutoStop?: () => void
-) {
-  const displayStream = await navigator.mediaDevices.getDisplayMedia({
-    video: {
-      width: { ideal: 2560 },
-      height: { ideal: 1440 },
-      frameRate: { ideal: 30 },
-    },
-    audio: true,
+import {
+  createCompositor,
+  type VideoRect,
+  type WebcamRect,
+} from './compositor';
+
+export interface RecordingOptions {
+  ratio: string;
+  backgroundColor: string;
+  uploadedVideoEl: HTMLVideoElement | null;
+  webcamVideoEl: HTMLVideoElement | null;
+  getVideoRect: () => VideoRect | null;
+  getWebcamRect: () => WebcamRect | null;
+}
+
+export interface Recording {
+  stop: () => Promise<Blob>;
+}
+
+export function getResolutionForRatio(ratio: string): {
+  width: number;
+  height: number;
+} {
+  switch (ratio) {
+    case '9:16':
+      return { width: 1080, height: 1920 };
+    case '16:9':
+      return { width: 1920, height: 1080 };
+    case '3:4':
+      return { width: 1080, height: 1440 };
+    case '1:1':
+      return { width: 1080, height: 1080 };
+    default:
+      return { width: 1920, height: 1080 };
+  }
+}
+
+export async function startCompositeRecording(
+  options: RecordingOptions
+): Promise<Recording> {
+  const { width, height } = getResolutionForRatio(options.ratio);
+
+  const compositor = createCompositor({
+    width,
+    height,
+    uploadedVideoEl: options.uploadedVideoEl,
+    webcamVideoEl: options.webcamVideoEl,
+    backgroundColor: options.backgroundColor,
+    getVideoRect: options.getVideoRect,
+    getWebcamRect: options.getWebcamRect,
   });
+
+  compositor.start();
+
+  const canvasStream = compositor.canvas.captureStream(30);
 
   let micStream: MediaStream | null = null;
   try {
@@ -21,31 +64,35 @@ export async function startRecording(
       },
     });
   } catch (err) {
-    console.warn('麦克风获取失败:', err);
+    console.warn('麦克风获取失败（继续无声录制）:', err);
+  }
+
+  let videoAudioStream: MediaStream | null = null;
+  if (options.uploadedVideoEl) {
+    const el = options.uploadedVideoEl as HTMLVideoElement & {
+      captureStream?: () => MediaStream;
+      mozCaptureStream?: () => MediaStream;
+    };
+    const capture = el.captureStream ?? el.mozCaptureStream;
+    if (capture) {
+      try {
+        videoAudioStream = capture.call(el);
+      } catch (err) {
+        console.warn('上传视频音频获取失败:', err);
+      }
+    }
   }
 
   const finalStream = new MediaStream([
-    ...displayStream.getVideoTracks(),
-    ...displayStream.getAudioTracks(),
-    ...(micStream?.getAudioTracks() || []),
+    ...canvasStream.getVideoTracks(),
+    ...(micStream?.getAudioTracks() ?? []),
+    ...(videoAudioStream?.getAudioTracks() ?? []),
   ]);
-
-  if (
-    webcamVideoEl &&
-    document.pictureInPictureEnabled &&
-    webcamVideoEl.readyState >= 2
-  ) {
-    try {
-      await webcamVideoEl.requestPictureInPicture();
-    } catch (err) {
-      console.warn('PiP 启动失败（不致命）:', err);
-    }
-  }
 
   const mimeType = getSupportedMimeType();
   const recorder = new MediaRecorder(finalStream, {
     mimeType,
-    videoBitsPerSecond: 8_000_000,
+    videoBitsPerSecond: 5_000_000,
   });
 
   const chunks: Blob[] = [];
@@ -55,31 +102,22 @@ export async function startRecording(
 
   let resolveStop: ((b: Blob) => void) | null = null;
   let rejectStop: ((err: unknown) => void) | null = null;
-  const stoppedPromise = new Promise<Blob>((resolve, reject) => {
-    resolveStop = resolve;
-    rejectStop = reject;
+  const stopped = new Promise<Blob>((res, rej) => {
+    resolveStop = res;
+    rejectStop = rej;
   });
 
-  recorder.onstop = async () => {
-    displayStream.getTracks().forEach((t) => t.stop());
+  recorder.onstop = () => {
+    compositor.stop();
+    canvasStream.getTracks().forEach((t) => t.stop());
     micStream?.getTracks().forEach((t) => t.stop());
-    if (document.pictureInPictureElement) {
-      try {
-        await document.exitPictureInPicture();
-      } catch {}
-    }
     resolveStop?.(new Blob(chunks, { type: mimeType }));
   };
   recorder.onerror = (e) => rejectStop?.(e);
 
-  displayStream.getVideoTracks()[0].addEventListener('ended', () => {
-    if (recorder.state !== 'inactive') recorder.stop();
-    onAutoStop?.();
-  });
-
   const stop = (): Promise<Blob> => {
     if (recorder.state !== 'inactive') recorder.stop();
-    return stoppedPromise;
+    return stopped;
   };
 
   recorder.start(1000);
@@ -114,14 +152,13 @@ export function generateFilename(): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `OneTake-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(
     now.getDate()
-  )}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.webm`;
+  )}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(
+    now.getSeconds()
+  )}.webm`;
 }
 
 export function isRecordingSupported() {
-  if (
-    typeof navigator === 'undefined' ||
-    !navigator.mediaDevices?.getDisplayMedia
-  ) {
+  if (typeof navigator === 'undefined' || !navigator.mediaDevices) {
     return {
       supported: false,
       reason: '浏览器不支持录制，请使用 Chrome / Edge 最新版',
@@ -130,5 +167,8 @@ export function isRecordingSupported() {
   if (typeof MediaRecorder === 'undefined') {
     return { supported: false, reason: '浏览器缺少录制 API' };
   }
-  return { supported: true };
+  if (typeof HTMLCanvasElement === 'undefined') {
+    return { supported: false, reason: '浏览器不支持 Canvas 录制' };
+  }
+  return { supported: true as const };
 }

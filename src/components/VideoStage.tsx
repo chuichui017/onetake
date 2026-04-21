@@ -271,6 +271,7 @@ export function VideoStage({ videoRef }: VideoStageProps) {
         ) : (
           <video
             ref={videoRef}
+            className="uploaded-video"
             src={videoUrl}
             playsInline
             muted={videoMuted}
