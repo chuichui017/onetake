@@ -51,7 +51,7 @@ export interface BorderState {
   color: string;
 }
 
-export type CanvasSize = '9:16' | '16:9' | '3:4' | '1:1';
+export type CanvasSize = '9:16' | '16:9' | '16:10' | '3:4' | '1:1';
 export type TeleTheme = 'gray' | 'light' | 'dark' | 'black';
 export type TeleTransparency = 'normal' | 'semi' | 'ultra';
 export type TeleFontSize = 'sm' | 'md' | 'lg' | 'xl';
@@ -487,7 +487,16 @@ export const useStudio = create<StudioState>()(
         const { getResolutionForRatio, startCompositeRecording } = await import(
           './recorder'
         );
-        const { width: outW, height: outH } = getResolutionForRatio(ratio);
+        const canvasOutput = getResolutionForRatio(ratio);
+        const stageRect = stageEl?.getBoundingClientRect() ?? null;
+        const scaleX =
+          stageRect && stageRect.width > 0
+            ? canvasOutput.width / stageRect.width
+            : 1;
+        const scaleY =
+          stageRect && stageRect.height > 0
+            ? canvasOutput.height / stageRect.height
+            : 1;
 
         const shapeToOut = (
           s: WebcamShape
@@ -498,36 +507,91 @@ export const useStudio = create<StudioState>()(
         };
 
         const getVideoRect = () => {
-          if (get().bgSource !== 'video' || !uploadedVideoEl || !stageEl) return null;
-          const sRect = stageEl.getBoundingClientRect();
+          if (get().bgSource !== 'video' || !uploadedVideoEl || !stageRect)
+            return null;
+          if (!uploadedVideoEl.videoWidth || !uploadedVideoEl.videoHeight)
+            return null;
           const vRect = uploadedVideoEl.getBoundingClientRect();
-          if (sRect.width === 0 || vRect.width === 0) return null;
-          const sx = outW / sRect.width;
-          const sy = outH / sRect.height;
+          if (vRect.width === 0) return null;
+
+          const containerX = (vRect.left - stageRect.left) * scaleX;
+          const containerY = (vRect.top - stageRect.top) * scaleY;
+          const containerW = vRect.width * scaleX;
+          const containerH = vRect.height * scaleY;
+
+          // contain 模式：保持原始比例，居中，不超出容器
+          const videoAspect =
+            uploadedVideoEl.videoWidth / uploadedVideoEl.videoHeight;
+          const containerAspect = containerW / containerH;
+
+          let finalW: number, finalH: number, finalX: number, finalY: number;
+          if (videoAspect > containerAspect) {
+            // 视频更宽 → 宽度顶满，上下留白
+            finalW = containerW;
+            finalH = containerW / videoAspect;
+            finalX = containerX;
+            finalY = containerY + (containerH - finalH) / 2;
+          } else {
+            // 视频更高 → 高度顶满，左右留白
+            finalH = containerH;
+            finalW = containerH * videoAspect;
+            finalY = containerY;
+            finalX = containerX + (containerW - finalW) / 2;
+          }
+
           return {
-            x: (vRect.left - sRect.left) * sx,
-            y: (vRect.top - sRect.top) * sy,
-            w: vRect.width * sx,
-            h: vRect.height * sy,
+            x: finalX,
+            y: finalY,
+            w: finalW,
+            h: finalH,
             borderRadius: 0,
+            containerX,
+            containerY,
+            containerW,
+            containerH,
           };
         };
 
         const getWebcamRect = () => {
-          if (!webcamEl || !stageEl) return null;
+          if (!webcamEl || !stageRect) return null;
+          if (!webcamEl.videoWidth || !webcamEl.videoHeight) return null;
           const shape = get().webcamShape;
           if (shape === 'hidden') return null;
-          const sRect = stageEl.getBoundingClientRect();
           const wRect = webcamEl.getBoundingClientRect();
-          if (sRect.width === 0 || wRect.width === 0) return null;
-          const sx = outW / sRect.width;
-          const sy = outH / sRect.height;
+          if (wRect.width === 0) return null;
+
+          const containerX = (wRect.left - stageRect.left) * scaleX;
+          const containerY = (wRect.top - stageRect.top) * scaleY;
+          const containerW = wRect.width * scaleX;
+          const containerH = wRect.height * scaleY;
+
+          // cover 模式：保持比例，铺满容器，溢出由 clip 裁切
+          const videoAspect = webcamEl.videoWidth / webcamEl.videoHeight;
+          const containerAspect = containerW / containerH;
+
+          let finalW: number, finalH: number, finalX: number, finalY: number;
+          if (videoAspect > containerAspect) {
+            finalH = containerH;
+            finalW = containerH * videoAspect;
+            finalY = containerY;
+            finalX = containerX - (finalW - containerW) / 2;
+          } else {
+            finalW = containerW;
+            finalH = containerW / videoAspect;
+            finalX = containerX;
+            finalY = containerY - (finalH - containerH) / 2;
+          }
+
           return {
-            x: (wRect.left - sRect.left) * sx,
-            y: (wRect.top - sRect.top) * sy,
-            w: wRect.width * sx,
-            h: wRect.height * sy,
+            x: finalX,
+            y: finalY,
+            w: finalW,
+            h: finalH,
             shape: shapeToOut(shape),
+            containerX,
+            containerY,
+            containerW,
+            containerH,
           };
         };
 

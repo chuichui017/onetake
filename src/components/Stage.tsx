@@ -26,6 +26,7 @@ const TldrawCanvas = dynamic(() => import('./TldrawCanvas'), { ssr: false });
 const ASPECT: Record<CanvasSize, { w: number; h: number }> = {
   '16:9': { w: 16, h: 9 },
   '9:16': { w: 9, h: 16 },
+  '16:10': { w: 16, h: 10 },
   '3:4': { w: 3, h: 4 },
   '1:1': { w: 1, h: 1 },
 };

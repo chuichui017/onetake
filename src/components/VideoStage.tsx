@@ -8,18 +8,11 @@ import {
   type RefObject,
 } from 'react';
 import { Pause, Play } from 'lucide-react';
-import { useStudio, type VideoFit } from '@/lib/store';
+import { useStudio } from '@/lib/store';
 
 interface VideoStageProps {
   videoRef: RefObject<HTMLVideoElement | null>;
 }
-
-const OBJECT_FIT: Record<VideoFit, 'cover' | 'contain' | 'fill' | 'none'> = {
-  cover: 'cover',
-  contain: 'contain',
-  fill: 'fill',
-  center: 'none',
-};
 
 type Corner = 'tl' | 'tr' | 'bl' | 'br';
 
@@ -43,6 +36,7 @@ export function VideoStage({ videoRef }: VideoStageProps) {
   const videoVolume = useStudio((s) => s.videoVolume);
   const videoPlaybackRate = useStudio((s) => s.videoPlaybackRate);
   const setVideoVolume = useStudio((s) => s.setVideoVolume);
+  const stageColor = useStudio((s) => s.stageColor);
   const [error, setError] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
   const [outerSize, setOuterSize] = useState({ w: 0, h: 0 });
@@ -95,7 +89,6 @@ export function VideoStage({ videoRef }: VideoStageProps) {
 
   if (!videoUrl) return null;
 
-  const fit = transform.fit;
   const layerTransform = `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`;
 
   const beginInteraction = () => {
@@ -248,6 +241,7 @@ export function VideoStage({ videoRef }: VideoStageProps) {
           transform: layerTransform,
           transformOrigin: 'center center',
           touchAction: 'none',
+          background: stageColor,
           ...NO_DRAG_STYLE,
         }}
         onPointerDown={startDrag}
@@ -285,16 +279,13 @@ export function VideoStage({ videoRef }: VideoStageProps) {
             style={{
               width: '100%',
               height: '100%',
-              objectFit: OBJECT_FIT[fit],
-              background: '#FAFAFA',
+              objectFit: 'contain',
+              background: stageColor,
               display: 'block',
               opacity: videoReady ? 1 : 0,
               transition: 'opacity 0.2s ease',
               pointerEvents: 'none',
-              imageRendering: 'auto',
-              willChange: 'transform',
-              transform: 'translateZ(0)',
-              backfaceVisibility: 'hidden',
+              imageRendering: '-webkit-optimize-contrast',
               ...NO_DRAG_STYLE,
             }}
             onLoadedData={() => setVideoReady(true)}

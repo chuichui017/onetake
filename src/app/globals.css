@@ -2813,3 +2813,62 @@ body.theme-indigo .scene-btn:hover {
   color: white;
 }
 
+
+.ratio-suggestion {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  background: #18181B;
+  color: #FAFAFA;
+  padding: 10px 12px 10px 16px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  z-index: 60;
+  animation: slide-up 0.25s ease;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.ratio-suggestion button {
+  background: #FAFAFA;
+  color: #18181B;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.ratio-suggestion button:hover {
+  background: #E4E4E7;
+}
+
+.ratio-suggestion button.dismiss {
+  background: transparent;
+  color: #A1A1AA;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ratio-suggestion button.dismiss:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #FAFAFA;
+}

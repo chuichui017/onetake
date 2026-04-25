@@ -17,7 +17,7 @@ interface HeaderProps {
   floatingActive: boolean;
 }
 
-const RATIOS: CanvasSize[] = ['9:16', '16:9', '3:4', '1:1'];
+const RATIOS: CanvasSize[] = ['9:16', '16:9', '16:10', '3:4', '1:1'];
 
 function RatioQuickPicker() {
   const canvasSize = useStudio((s) => s.canvasSize);

@@ -184,7 +184,7 @@ const SHAPES: { v: WebcamShape; label: string; icon: React.ReactNode }[] = [
 
 const BEAUTY_MODES: BeautyMode[] = ['关闭', '自然', '明亮', '柔光'];
 
-const RATIOS: CanvasSize[] = ['9:16', '16:9', '3:4', '1:1'];
+const RATIOS: CanvasSize[] = ['9:16', '16:9', '16:10', '3:4', '1:1'];
 
 function SectionHeader({
   panelKey,

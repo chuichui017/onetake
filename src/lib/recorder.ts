@@ -26,6 +26,8 @@ export function getResolutionForRatio(ratio: string): {
       return { width: 1080, height: 1920 };
     case '16:9':
       return { width: 1920, height: 1080 };
+    case '16:10':
+      return { width: 1920, height: 1200 };
     case '3:4':
       return { width: 1080, height: 1440 };
     case '1:1':
@@ -51,6 +53,8 @@ export async function startCompositeRecording(
   });
 
   compositor.start();
+
+  await new Promise((r) => setTimeout(r, 200));
 
   const canvasStream = compositor.canvas.captureStream(30);
 
@@ -126,8 +130,8 @@ export async function startCompositeRecording(
 
 function getSupportedMimeType(): string {
   const candidates = [
-    'video/webm;codecs=vp9,opus',
     'video/webm;codecs=vp8,opus',
+    'video/webm;codecs=vp9,opus',
     'video/webm',
   ];
   for (const t of candidates) {

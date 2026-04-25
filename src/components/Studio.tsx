@@ -14,6 +14,7 @@ import { ScenesBar } from './ScenesBar';
 import { Teleprompter } from './Teleprompter';
 import { Toast } from './Toast';
 import { RecordCountdown } from './RecordCountdown';
+import RatioSuggestion from './RatioSuggestion';
 
 export function Studio() {
   useHotkeys();
@@ -95,6 +96,7 @@ export function Studio() {
       <Teleprompter />
       <Toast />
       <RecordCountdown />
+      <RatioSuggestion />
     </>
   );
 }

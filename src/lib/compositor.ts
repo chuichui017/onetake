@@ -10,6 +10,10 @@ export interface VideoRect {
   w: number;
   h: number;
   borderRadius: number;
+  containerX: number;
+  containerY: number;
+  containerW: number;
+  containerH: number;
 }
 
 export interface WebcamRect {
@@ -18,6 +22,10 @@ export interface WebcamRect {
   w: number;
   h: number;
   shape: WebcamShapeOut;
+  containerX: number;
+  containerY: number;
+  containerW: number;
+  containerH: number;
 }
 
 export interface CompositorConfig {
@@ -40,7 +48,7 @@ export function createCompositor(config: CompositorConfig): Compositor {
   const canvas = document.createElement('canvas');
   canvas.width = config.width;
   canvas.height = config.height;
-  const ctx = canvas.getContext('2d', { alpha: false });
+  const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('无法创建 Canvas 2D 上下文');
 
   let running = false;
@@ -74,10 +82,21 @@ export function createCompositor(config: CompositorConfig): Compositor {
       const rect = config.getVideoRect();
       if (rect && rect.w > 0 && rect.h > 0) {
         ctx.save();
-        if (rect.borderRadius > 0) {
-          roundedRectPath(ctx, rect.x, rect.y, rect.w, rect.h, rect.borderRadius);
-          ctx.clip();
-        }
+        ctx.fillStyle = config.backgroundColor;
+        ctx.fillRect(
+          rect.containerX,
+          rect.containerY,
+          rect.containerW,
+          rect.containerH
+        );
+        ctx.beginPath();
+        ctx.rect(
+          rect.containerX,
+          rect.containerY,
+          rect.containerW,
+          rect.containerH
+        );
+        ctx.clip();
         try {
           ctx.drawImage(config.uploadedVideoEl, rect.x, rect.y, rect.w, rect.h);
         } catch {
@@ -91,20 +110,30 @@ export function createCompositor(config: CompositorConfig): Compositor {
       const rect = config.getWebcamRect();
       if (rect && rect.w > 0 && rect.h > 0) {
         ctx.save();
+        ctx.beginPath();
         if (rect.shape === 'circle') {
-          ctx.beginPath();
-          ctx.arc(
-            rect.x + rect.w / 2,
-            rect.y + rect.h / 2,
-            Math.min(rect.w, rect.h) / 2,
-            0,
-            Math.PI * 2
-          );
-          ctx.clip();
+          const cx = rect.containerX + rect.containerW / 2;
+          const cy = rect.containerY + rect.containerH / 2;
+          const r = Math.min(rect.containerW, rect.containerH) / 2;
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
         } else if (rect.shape === 'rounded') {
-          roundedRectPath(ctx, rect.x, rect.y, rect.w, rect.h, 24);
-          ctx.clip();
+          roundedRectPath(
+            ctx,
+            rect.containerX,
+            rect.containerY,
+            rect.containerW,
+            rect.containerH,
+            24
+          );
+        } else {
+          ctx.rect(
+            rect.containerX,
+            rect.containerY,
+            rect.containerW,
+            rect.containerH
+          );
         }
+        ctx.clip();
         try {
           ctx.drawImage(config.webcamVideoEl, rect.x, rect.y, rect.w, rect.h);
         } catch {
