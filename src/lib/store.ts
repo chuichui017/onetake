@@ -116,7 +116,37 @@ interface PersistedTele {
   panelCollapsed: PanelCollapsedMap;
   stageColor: string;
   panelHidden: boolean;
+  recordWithBackground: boolean;
+  videoCard: VideoCard;
 }
+
+export type VideoCardShadow = 'none' | 'small' | 'medium' | 'large';
+
+export interface VideoCard {
+  x: number;
+  y: number;
+  scale: number;
+  borderRadius: number;
+  shadow: VideoCardShadow;
+}
+
+const DEFAULT_VIDEO_CARD: VideoCard = {
+  x: 50,
+  y: 50,
+  scale: 1.0,
+  borderRadius: 16,
+  shadow: 'medium',
+};
+
+const VIDEO_SHADOWS_CSS: Record<
+  VideoCardShadow,
+  { blur: number; offsetY: number; color: string } | null
+> = {
+  none: null,
+  small: { blur: 12, offsetY: 4, color: 'rgba(0,0,0,0.1)' },
+  medium: { blur: 32, offsetY: 12, color: 'rgba(0,0,0,0.15)' },
+  large: { blur: 64, offsetY: 24, color: 'rgba(0,0,0,0.25)' },
+};
 
 interface StudioState extends PersistedTele {
   scene: SceneId;
@@ -208,6 +238,9 @@ interface StudioState extends PersistedTele {
   setCustomGradient: (patch: Partial<CustomGradient>) => void;
   setStageColor: (color: string) => void;
   resetBackgroundAll: () => void;
+  setRecordWithBackground: (v: boolean) => void;
+  setVideoCard: (patch: Partial<VideoCard>) => void;
+  resetVideoCard: () => void;
   layers: Layer[];
   setLayers: (layers: Layer[]) => void;
   patchLayer: (id: string, patch: Parameters<typeof patchLayerFn>[2]) => void;
@@ -239,6 +272,8 @@ const persisted = (s: StudioState): PersistedTele => ({
   panelCollapsed: s.panelCollapsed,
   stageColor: s.stageColor,
   panelHidden: s.panelHidden,
+  recordWithBackground: s.recordWithBackground,
+  videoCard: s.videoCard,
 });
 
 const DEFAULT_PANEL_COLLAPSED: PanelCollapsedMap = {
@@ -306,6 +341,8 @@ export const useStudio = create<StudioState>()(
       hintDismissed: false,
       panelCollapsed: { ...DEFAULT_PANEL_COLLAPSED },
       stageColor: '#FFFFFF',
+      recordWithBackground: true,
+      videoCard: { ...DEFAULT_VIDEO_CARD },
       layers: createDefaultLayers(),
 
       setScene: (id) => {
@@ -472,14 +509,23 @@ export const useStudio = create<StudioState>()(
         set({ countdownValue: null });
 
         const ratio = get().canvasSize;
-        const backgroundColor = get().stageColor;
+        const recordWithBackground = get().recordWithBackground;
+        const backgroundColor = recordWithBackground
+          ? get().stageColor
+          : '#FFFFFF';
 
         const uploadedVideoEl = document.querySelector(
           'video.uploaded-video'
         ) as HTMLVideoElement | null;
+        const videoCardEl = document.querySelector(
+          '.video-card'
+        ) as HTMLElement | null;
         const webcamEl = document.querySelector(
           'video.webcam-feed'
         ) as HTMLVideoElement | null;
+        const webcamLayerEl = document.querySelector(
+          '.webcam-layer'
+        ) as HTMLElement | null;
         const stageEl = document.querySelector(
           '.stage-shell'
         ) as HTMLElement | null;
@@ -487,16 +533,57 @@ export const useStudio = create<StudioState>()(
         const { getResolutionForRatio, startCompositeRecording } = await import(
           './recorder'
         );
-        const canvasOutput = getResolutionForRatio(ratio);
-        const stageRect = stageEl?.getBoundingClientRect() ?? null;
-        const scaleX =
-          stageRect && stageRect.width > 0
-            ? canvasOutput.width / stageRect.width
-            : 1;
-        const scaleY =
-          stageRect && stageRect.height > 0
-            ? canvasOutput.height / stageRect.height
-            : 1;
+
+        let recordingBoundsRect: {
+          x: number;
+          y: number;
+          width: number;
+          height: number;
+        };
+        let canvasOutput: { width: number; height: number };
+
+        if (recordWithBackground) {
+          const stageRect = stageEl?.getBoundingClientRect() ?? null;
+          if (!stageRect || stageRect.width === 0) {
+            get().showToast('画板尺寸未就绪');
+            return;
+          }
+          recordingBoundsRect = {
+            x: stageRect.left,
+            y: stageRect.top,
+            width: stageRect.width,
+            height: stageRect.height,
+          };
+          canvasOutput = getResolutionForRatio(ratio);
+        } else {
+          const rects: DOMRect[] = [];
+          if (videoCardEl) rects.push(videoCardEl.getBoundingClientRect());
+          if (webcamLayerEl && get().webcamShape !== 'hidden') {
+            rects.push(webcamLayerEl.getBoundingClientRect());
+          }
+          if (rects.length === 0) {
+            get().showToast('录制时没有视频或摄像头');
+            return;
+          }
+          const left = Math.min(...rects.map((r) => r.left));
+          const top = Math.min(...rects.map((r) => r.top));
+          const right = Math.max(...rects.map((r) => r.right));
+          const bottom = Math.max(...rects.map((r) => r.bottom));
+          recordingBoundsRect = {
+            x: left,
+            y: top,
+            width: right - left,
+            height: bottom - top,
+          };
+          const dpr = 2;
+          canvasOutput = {
+            width: Math.round(recordingBoundsRect.width * dpr),
+            height: Math.round(recordingBoundsRect.height * dpr),
+          };
+        }
+
+        const scaleX = canvasOutput.width / recordingBoundsRect.width;
+        const scaleY = canvasOutput.height / recordingBoundsRect.height;
 
         const shapeToOut = (
           s: WebcamShape
@@ -507,61 +594,52 @@ export const useStudio = create<StudioState>()(
         };
 
         const getVideoRect = () => {
-          if (get().bgSource !== 'video' || !uploadedVideoEl || !stageRect)
+          if (
+            get().bgSource !== 'video' ||
+            !uploadedVideoEl ||
+            !videoCardEl
+          )
             return null;
           if (!uploadedVideoEl.videoWidth || !uploadedVideoEl.videoHeight)
             return null;
-          const vRect = uploadedVideoEl.getBoundingClientRect();
-          if (vRect.width === 0) return null;
+          const cRect = videoCardEl.getBoundingClientRect();
+          if (cRect.width === 0 || cRect.height === 0) return null;
 
-          const containerX = (vRect.left - stageRect.left) * scaleX;
-          const containerY = (vRect.top - stageRect.top) * scaleY;
-          const containerW = vRect.width * scaleX;
-          const containerH = vRect.height * scaleY;
+          const x = (cRect.left - recordingBoundsRect.x) * scaleX;
+          const y = (cRect.top - recordingBoundsRect.y) * scaleY;
+          const w = cRect.width * scaleX;
+          const h = cRect.height * scaleY;
 
-          // contain 模式：保持原始比例，居中，不超出容器
-          const videoAspect =
-            uploadedVideoEl.videoWidth / uploadedVideoEl.videoHeight;
-          const containerAspect = containerW / containerH;
-
-          let finalW: number, finalH: number, finalX: number, finalY: number;
-          if (videoAspect > containerAspect) {
-            // 视频更宽 → 宽度顶满，上下留白
-            finalW = containerW;
-            finalH = containerW / videoAspect;
-            finalX = containerX;
-            finalY = containerY + (containerH - finalH) / 2;
-          } else {
-            // 视频更高 → 高度顶满，左右留白
-            finalH = containerH;
-            finalW = containerH * videoAspect;
-            finalY = containerY;
-            finalX = containerX + (containerW - finalW) / 2;
-          }
+          const card = get().videoCard;
+          const shadowCss = VIDEO_SHADOWS_CSS[card.shadow];
+          const shadow = shadowCss
+            ? {
+                blur: shadowCss.blur * scaleX,
+                offsetY: shadowCss.offsetY * scaleY,
+                color: shadowCss.color,
+              }
+            : null;
 
           return {
-            x: finalX,
-            y: finalY,
-            w: finalW,
-            h: finalH,
-            borderRadius: 0,
-            containerX,
-            containerY,
-            containerW,
-            containerH,
+            x,
+            y,
+            w,
+            h,
+            borderRadius: card.borderRadius * scaleX,
+            shadow,
           };
         };
 
         const getWebcamRect = () => {
-          if (!webcamEl || !stageRect) return null;
+          if (!webcamEl) return null;
           if (!webcamEl.videoWidth || !webcamEl.videoHeight) return null;
           const shape = get().webcamShape;
           if (shape === 'hidden') return null;
           const wRect = webcamEl.getBoundingClientRect();
           if (wRect.width === 0) return null;
 
-          const containerX = (wRect.left - stageRect.left) * scaleX;
-          const containerY = (wRect.top - stageRect.top) * scaleY;
+          const containerX = (wRect.left - recordingBoundsRect.x) * scaleX;
+          const containerY = (wRect.top - recordingBoundsRect.y) * scaleY;
           const containerW = wRect.width * scaleX;
           const containerH = wRect.height * scaleY;
 
@@ -597,7 +675,9 @@ export const useStudio = create<StudioState>()(
 
         try {
           const { stop } = await startCompositeRecording({
-            ratio,
+            width: canvasOutput.width,
+            height: canvasOutput.height,
+            recordWithBackground,
             backgroundColor,
             uploadedVideoEl,
             webcamVideoEl: webcamEl,
@@ -775,6 +855,10 @@ export const useStudio = create<StudioState>()(
         get().setBackground({ type: 'gradient', value });
       },
       setStageColor: (color) => set({ stageColor: color }),
+      setRecordWithBackground: (v) => set({ recordWithBackground: v }),
+      setVideoCard: (patch) =>
+        set((st) => ({ videoCard: { ...st.videoCard, ...patch } })),
+      resetVideoCard: () => set({ videoCard: { ...DEFAULT_VIDEO_CARD } }),
       resetBackgroundAll: () => {
         set({ stageColor: '#FFFFFF' });
         get().setBackground({

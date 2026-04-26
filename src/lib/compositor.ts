@@ -10,10 +10,7 @@ export interface VideoRect {
   w: number;
   h: number;
   borderRadius: number;
-  containerX: number;
-  containerY: number;
-  containerW: number;
-  containerH: number;
+  shadow: { blur: number; offsetY: number; color: string } | null;
 }
 
 export interface WebcamRect {
@@ -34,6 +31,7 @@ export interface CompositorConfig {
   uploadedVideoEl: HTMLVideoElement | null;
   webcamVideoEl: HTMLVideoElement | null;
   backgroundColor: string;
+  recordWithBackground: boolean;
   getVideoRect: () => VideoRect | null;
   getWebcamRect: () => WebcamRect | null;
 }
@@ -75,26 +73,43 @@ export function createCompositor(config: CompositorConfig): Compositor {
   const drawFrame = () => {
     if (!running) return;
 
-    ctx.fillStyle = config.backgroundColor;
-    ctx.fillRect(0, 0, config.width, config.height);
+    if (config.recordWithBackground) {
+      ctx.fillStyle = config.backgroundColor;
+      ctx.fillRect(0, 0, config.width, config.height);
+    } else {
+      ctx.clearRect(0, 0, config.width, config.height);
+    }
 
     if (config.uploadedVideoEl && config.uploadedVideoEl.readyState >= 2) {
       const rect = config.getVideoRect();
       if (rect && rect.w > 0 && rect.h > 0) {
         ctx.save();
-        ctx.fillStyle = config.backgroundColor;
-        ctx.fillRect(
-          rect.containerX,
-          rect.containerY,
-          rect.containerW,
-          rect.containerH
-        );
-        ctx.beginPath();
-        ctx.rect(
-          rect.containerX,
-          rect.containerY,
-          rect.containerW,
-          rect.containerH
+        if (rect.shadow) {
+          ctx.fillStyle = '#000';
+          ctx.shadowColor = rect.shadow.color;
+          ctx.shadowBlur = rect.shadow.blur;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = rect.shadow.offsetY;
+          roundedRectPath(
+            ctx,
+            rect.x,
+            rect.y,
+            rect.w,
+            rect.h,
+            rect.borderRadius
+          );
+          ctx.fill();
+          ctx.shadowColor = 'transparent';
+          ctx.shadowBlur = 0;
+          ctx.shadowOffsetY = 0;
+        }
+        roundedRectPath(
+          ctx,
+          rect.x,
+          rect.y,
+          rect.w,
+          rect.h,
+          rect.borderRadius
         );
         ctx.clip();
         try {

@@ -235,7 +235,7 @@ export function Stage({ onRequestScreen }: StageProps) {
           <>
             <div
               ref={shellRef}
-              className="stage-shell"
+              className={`stage-shell${videoUrl ? ' stage-hidden' : ''}`}
               style={shellStyle}
             >
               <TldrawCanvas />

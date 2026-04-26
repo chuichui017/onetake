@@ -132,6 +132,8 @@ export function BackgroundPicker() {
   const customGradient = useStudio((s) => s.customGradient);
   const setBackground = useStudio((s) => s.setBackground);
   const setCustomGradient = useStudio((s) => s.setCustomGradient);
+  const recordWithBackground = useStudio((s) => s.recordWithBackground);
+  const setRecordWithBackground = useStudio((s) => s.setRecordWithBackground);
 
   useEffect(() => {
     if (bg.type === 'blur') setBackground({ type: 'default' });
@@ -151,6 +153,22 @@ export function BackgroundPicker() {
 
   return (
     <div className="bg-picker">
+      <div className="record-bg-toggle">
+        <div className="toggle-label">
+          <div className="toggle-title">录制时包含背景</div>
+          <div className="toggle-hint">关闭后导出视频背景为纯白</div>
+        </div>
+        <button
+          type="button"
+          className={`toggle-switch ${recordWithBackground ? 'on' : 'off'}`}
+          onClick={() => setRecordWithBackground(!recordWithBackground)}
+          aria-label="录制时是否包含背景"
+          aria-pressed={recordWithBackground}
+        >
+          <span className="toggle-thumb" />
+        </button>
+      </div>
+
       <div className="bg-tabs">
         {TABS.map((t) => (
           <button

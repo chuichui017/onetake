@@ -5,7 +5,9 @@ import {
 } from './compositor';
 
 export interface RecordingOptions {
-  ratio: string;
+  width: number;
+  height: number;
+  recordWithBackground: boolean;
   backgroundColor: string;
   uploadedVideoEl: HTMLVideoElement | null;
   webcamVideoEl: HTMLVideoElement | null;
@@ -40,14 +42,13 @@ export function getResolutionForRatio(ratio: string): {
 export async function startCompositeRecording(
   options: RecordingOptions
 ): Promise<Recording> {
-  const { width, height } = getResolutionForRatio(options.ratio);
-
   const compositor = createCompositor({
-    width,
-    height,
+    width: options.width,
+    height: options.height,
     uploadedVideoEl: options.uploadedVideoEl,
     webcamVideoEl: options.webcamVideoEl,
     backgroundColor: options.backgroundColor,
+    recordWithBackground: options.recordWithBackground,
     getVideoRect: options.getVideoRect,
     getWebcamRect: options.getWebcamRect,
   });
@@ -93,7 +94,7 @@ export async function startCompositeRecording(
     ...(videoAudioStream?.getAudioTracks() ?? []),
   ]);
 
-  const mimeType = getSupportedMimeType();
+  const mimeType = getSupportedMimeType(!options.recordWithBackground);
   const recorder = new MediaRecorder(finalStream, {
     mimeType,
     videoBitsPerSecond: 5_000_000,
@@ -128,12 +129,18 @@ export async function startCompositeRecording(
   return { stop };
 }
 
-function getSupportedMimeType(): string {
-  const candidates = [
-    'video/webm;codecs=vp8,opus',
-    'video/webm;codecs=vp9,opus',
-    'video/webm',
-  ];
+function getSupportedMimeType(preferAlpha: boolean): string {
+  const candidates = preferAlpha
+    ? [
+        'video/webm;codecs=vp9,opus',
+        'video/webm;codecs=vp8,opus',
+        'video/webm',
+      ]
+    : [
+        'video/webm;codecs=vp8,opus',
+        'video/webm;codecs=vp9,opus',
+        'video/webm',
+      ];
   for (const t of candidates) {
     if (MediaRecorder.isTypeSupported(t)) return t;
   }

@@ -387,6 +387,8 @@ export function RightPanel() {
           )}
         </div>
 
+        <VideoCardSection />
+
         <BackgroundSection />
 
         <ScreenSharePanel />
@@ -730,6 +732,72 @@ function ScreenSharePanel() {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+const SHADOW_PRESETS: { v: 'none' | 'small' | 'medium' | 'large'; label: string }[] = [
+  { v: 'none', label: '无' },
+  { v: 'small', label: '小' },
+  { v: 'medium', label: '中' },
+  { v: 'large', label: '大' },
+];
+
+function VideoCardSection() {
+  const videoUrl = useStudio((s) => s.videoUrl);
+  const videoCard = useStudio((s) => s.videoCard);
+  const setVideoCard = useStudio((s) => s.setVideoCard);
+
+  if (!videoUrl) return null;
+
+  return (
+    <div className="panel-section video-card-panel">
+      <h3 className="panel-section-title">视频卡片</h3>
+      <div className="panel-section-body">
+        <div className="panel-row">
+          <label>大小</label>
+          <input
+            type="range"
+            min={30}
+            max={150}
+            value={Math.round(videoCard.scale * 100)}
+            onChange={(e) =>
+              setVideoCard({ scale: Number(e.target.value) / 100 })
+            }
+          />
+          <span>{Math.round(videoCard.scale * 100)}%</span>
+        </div>
+        <div className="panel-row">
+          <label>圆角</label>
+          <input
+            type="range"
+            min={0}
+            max={48}
+            value={videoCard.borderRadius}
+            onChange={(e) =>
+              setVideoCard({ borderRadius: Number(e.target.value) })
+            }
+          />
+          <span>{videoCard.borderRadius}px</span>
+        </div>
+        <div className="panel-row">
+          <label>投影</label>
+          <div className="shadow-options">
+            {SHADOW_PRESETS.map((s) => (
+              <button
+                key={s.v}
+                type="button"
+                className={`shadow-btn${
+                  videoCard.shadow === s.v ? ' active' : ''
+                }`}
+                onClick={() => setVideoCard({ shadow: s.v })}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
