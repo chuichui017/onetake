@@ -135,6 +135,8 @@ export function WebcamLayer({
   const border = useStudio((s) => s.border);
   const setCustomWebcamPos = useStudio((s) => s.setCustomWebcamPos);
   const startCameraPreview = useStudio((s) => s.startCameraPreview);
+  const stopCamera = useStudio((s) => s.stopCamera);
+  const [hovering, setHovering] = useState(false);
 
   const { stream, videoRef } = useCamera();
 
@@ -254,6 +256,8 @@ export function WebcamLayer({
         ref={layerRef}
         className={cls}
         onPointerDown={onPointerDown}
+        onMouseEnter={() => setHovering(true)}
+        onMouseLeave={() => setHovering(false)}
         style={
           {
             left: rect.left,
@@ -269,7 +273,15 @@ export function WebcamLayer({
         }
       >
         {ready ? (
-          <video ref={videoRef} autoPlay playsInline muted className="webcam-feed" />
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            controls={false}
+            disablePictureInPicture
+            className="webcam-feed"
+          />
         ) : (
           shape !== 'hidden' && (
             <>
@@ -284,6 +296,21 @@ export function WebcamLayer({
               </button>
             </>
           )
+        )}
+        {ready && hovering && shape !== 'hidden' && (
+          <button
+            type="button"
+            className="webcam-close-overlay"
+            style={{ borderRadius: rect.radius }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              stopCamera();
+            }}
+            aria-label="关闭摄像头"
+          >
+            ✕ 关闭摄像头
+          </button>
         )}
       </div>
     </>

@@ -107,6 +107,8 @@ export function VideoStage({ videoRef }: VideoStageProps) {
               loop
               playsInline
               muted={videoMuted}
+              controls={false}
+              disablePictureInPicture
               onLoadedMetadata={(e) => {
                 const v = e.currentTarget;
                 if (v.videoWidth && v.videoHeight) {
