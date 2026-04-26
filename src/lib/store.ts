@@ -530,9 +530,89 @@ export const useStudio = create<StudioState>()(
           '.stage-shell'
         ) as HTMLElement | null;
 
-        const { getResolutionForRatio, startCompositeRecording } = await import(
-          './recorder'
-        );
+        const {
+          getResolutionForRatio,
+          startCompositeRecording,
+          startScreenShareRecording,
+        } = await import('./recorder');
+
+        if (get().bgSource === 'screen') {
+          const { getScreenStream } = await import('@/hooks/useScreenShare');
+          const screenStream = getScreenStream();
+          if (!screenStream) {
+            get().showToast('屏幕共享未开启');
+            return;
+          }
+          const shape = get().webcamShape;
+
+          let webcamPosition: {
+            x: number;
+            y: number;
+            width: number;
+            height: number;
+          } | null = null;
+          if (shape !== 'hidden' && stageEl && webcamLayerEl) {
+            const stageRect = stageEl.getBoundingClientRect();
+            const camRect = webcamLayerEl.getBoundingClientRect();
+            if (stageRect.width > 0 && stageRect.height > 0) {
+              webcamPosition = {
+                x: (camRect.left - stageRect.left) / stageRect.width,
+                y: (camRect.top - stageRect.top) / stageRect.height,
+                width: camRect.width / stageRect.width,
+                height: camRect.height / stageRect.height,
+              };
+              console.log('[store] webcam position from UI:', webcamPosition, {
+                stageRect: { w: stageRect.width, h: stageRect.height },
+                camRect: {
+                  x: camRect.left - stageRect.left,
+                  y: camRect.top - stageRect.top,
+                  w: camRect.width,
+                  h: camRect.height,
+                },
+              });
+            }
+          }
+
+          const bgColor = get().stageColor;
+          console.log(
+            '[store] sending bg color to recorder:',
+            bgColor,
+            'shape:',
+            shape
+          );
+
+          try {
+            const { stop } = await startScreenShareRecording({
+              screenStream,
+              webcamVideoEl: webcamEl,
+              webcamShape: shape,
+              webcamPosition,
+              backgroundColor: bgColor,
+              canvasRatio: ratio,
+            });
+            const timer = setInterval(() => {
+              const s = get().recordingStartTime;
+              if (s === null) return;
+              set({ recordingDuration: Math.floor((Date.now() - s) / 1000) });
+            }, 500);
+            set({
+              isRecording: true,
+              recordingStartTime: Date.now(),
+              recordingDuration: 0,
+              _recorderStop: stop,
+              _recordingTimer: timer,
+            });
+            get().showToast('录制已开始');
+          } catch (err) {
+            const e = err as { name?: string; message?: string };
+            if (e?.name === 'NotAllowedError') {
+              get().showToast('录制已取消');
+            } else {
+              get().showToast('录制启动失败：' + (e?.message || String(err)));
+            }
+          }
+          return;
+        }
 
         let recordingBoundsRect: {
           x: number;

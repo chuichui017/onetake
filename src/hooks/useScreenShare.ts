@@ -12,6 +12,10 @@ function notify() {
   subscribers.forEach((fn) => fn(sharedScreen));
 }
 
+export function getScreenStream(): MediaStream | null {
+  return sharedScreen;
+}
+
 export function useScreenShare() {
   const [status, setStatus] = useState<ScreenStatus>(
     sharedScreen ? 'active' : 'idle'

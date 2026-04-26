@@ -622,7 +622,7 @@ body.theme-indigo .record-btn.recording {
 .screen-wrap {
   position: absolute;
   overflow: hidden;
-  background: #000;
+  background: transparent;
 }
 
 .screen-wrap video {
