@@ -630,6 +630,7 @@ body.theme-indigo .record-btn.recording {
   height: 100%;
   display: block;
   transform-origin: center;
+  background: transparent;
 }
 
 .right-panel {
@@ -3021,8 +3022,3 @@ body.theme-indigo .scene-btn:hover {
   border-color: #18181B;
 }
 
-.stage-shell.stage-hidden {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-}

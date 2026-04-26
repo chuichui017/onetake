@@ -510,9 +510,20 @@ export const useStudio = create<StudioState>()(
 
         const ratio = get().canvasSize;
         const recordWithBackground = get().recordWithBackground;
-        const backgroundColor = recordWithBackground
-          ? get().stageColor
-          : '#FFFFFF';
+        const bgState = get().background;
+        let backgroundColor: string;
+        let bgPatternKind: BackgroundPattern | null = null;
+        if (!recordWithBackground) {
+          backgroundColor = '#FFFFFF';
+        } else if (bgState.type === 'solid' || bgState.type === 'gradient') {
+          backgroundColor = bgState.value;
+        } else if (bgState.type === 'pattern' && bgState.pattern) {
+          backgroundColor = bgState.patternBase;
+          bgPatternKind = bgState.pattern;
+        } else {
+          // default / blur / pattern-without-kind → 用 stageColor
+          backgroundColor = get().stageColor;
+        }
 
         const uploadedVideoEl = document.querySelector(
           'video.uploaded-video'
@@ -665,6 +676,23 @@ export const useStudio = create<StudioState>()(
         const scaleX = canvasOutput.width / recordingBoundsRect.width;
         const scaleY = canvasOutput.height / recordingBoundsRect.height;
 
+        let bgPattern: {
+          kind: BackgroundPattern;
+          color: string;
+          scale: number;
+        } | null = null;
+        if (bgPatternKind) {
+          const hex = bgState.patternColor.replace('#', '');
+          const r = parseInt(hex.slice(0, 2), 16);
+          const g = parseInt(hex.slice(2, 4), 16);
+          const b = parseInt(hex.slice(4, 6), 16);
+          bgPattern = {
+            kind: bgPatternKind,
+            color: `rgba(${r}, ${g}, ${b}, ${bgState.patternOpacity})`,
+            scale: scaleX,
+          };
+        }
+
         const shapeToOut = (
           s: WebcamShape
         ): 'circle' | 'rounded' | 'square' => {
@@ -759,6 +787,7 @@ export const useStudio = create<StudioState>()(
             height: canvasOutput.height,
             recordWithBackground,
             backgroundColor,
+            bgPattern,
             uploadedVideoEl,
             webcamVideoEl: webcamEl,
             getVideoRect,
@@ -798,8 +827,9 @@ export const useStudio = create<StudioState>()(
 
         try {
           const blob = await _recorderStop();
-          const { downloadBlob, generateFilename } = await import('./recorder');
-          downloadBlob(blob, generateFilename());
+          const { downloadBlob, generateFilename, extensionFromMime } =
+            await import('./recorder');
+          downloadBlob(blob, generateFilename(extensionFromMime(blob.type)));
 
           const m = Math.floor(recordingDuration / 60);
           const s = recordingDuration % 60;

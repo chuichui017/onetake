@@ -164,7 +164,6 @@ export function Stage({ onRequestScreen }: StageProps) {
   const transform = `translate(-50%, -50%) translate(${canvasPan.x}px, ${canvasPan.y}px) scale(${canvasZoom})`;
 
   const isDefaultBg = background.type === 'default';
-  const wrapStyle: CSSProperties = bgToStyle(background);
   const shellBaseStyle: CSSProperties = {
     width: baseFit.w,
     height: baseFit.h,
@@ -179,7 +178,7 @@ export function Stage({ onRequestScreen }: StageProps) {
   };
   const shellStyle: CSSProperties = {
     ...shellBaseStyle,
-    background: stageColor,
+    ...(isDefaultBg ? { background: stageColor } : bgToStyle(background)),
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -213,10 +212,7 @@ export function Stage({ onRequestScreen }: StageProps) {
     <>
       <div
         ref={wrapRef}
-        className={`canvas-wrap${isDefaultBg ? ' dot-grid' : ''}${
-          isDragOver ? ' drag-over' : ''
-        }`}
-        style={wrapStyle}
+        className={`canvas-wrap${isDragOver ? ' drag-over' : ''}`}
         onDoubleClick={(e) => {
           const shell = shellRef.current;
           if (shell && shell.contains(e.target as Node)) return;
@@ -235,7 +231,7 @@ export function Stage({ onRequestScreen }: StageProps) {
           <>
             <div
               ref={shellRef}
-              className={`stage-shell${videoUrl ? ' stage-hidden' : ''}`}
+              className={`stage-shell${isDefaultBg ? ' dot-grid' : ''}`}
               style={shellStyle}
             >
               <TldrawCanvas />
