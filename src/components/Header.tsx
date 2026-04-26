@@ -1,69 +1,247 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Download,
-  PictureInPicture2,
-  Settings,
+  Image as ImageIcon,
+  Pause,
+  Play,
+  Scissors,
+  Settings2,
   Type,
 } from 'lucide-react';
 import { useStudio, type CanvasSize } from '@/lib/store';
+import { sceneOrder, scenes, type SceneId } from '@/lib/scenes';
 
 interface HeaderProps {
-  onOpenFloating: () => void;
-  floatingActive: boolean;
+  onRequestScreen: () => void | Promise<void>;
 }
 
-const RATIOS: CanvasSize[] = ['9:16', '16:9', '16:10', '3:4', '1:1'];
+const RATIOS: CanvasSize[] = ['16:9', '9:16', '1:1', '3:4', '16:10'];
 
-function RatioQuickPicker() {
+function RecordSettings() {
   const canvasSize = useStudio((s) => s.canvasSize);
   const setCanvasSize = useStudio((s) => s.setCanvasSize);
+  const recordWithBackground = useStudio((s) => s.recordWithBackground);
+  const setRecordWithBackground = useStudio((s) => s.setRecordWithBackground);
   const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      const wrap = wrapRef.current;
+      if (wrap && !wrap.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
 
   return (
-    <div className="ratio-picker">
+    <div className="record-settings" ref={wrapRef}>
       <button
         type="button"
-        className="ratio-picker-trigger"
+        className={`header-btn${open ? ' active' : ''}`}
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
+        title="录制设置"
       >
-        {canvasSize}
+        <Settings2 size={14} />
+        <span>录制设置</span>
         <ChevronDown size={12} />
       </button>
       {open && (
-        <>
-          <div
-            className="ratio-picker-backdrop"
-            onClick={() => setOpen(false)}
-          />
-          <div className="ratio-picker-menu" role="menu">
-            {RATIOS.map((r) => (
-              <button
-                key={r}
-                type="button"
-                className={`ratio-picker-item${r === canvasSize ? ' active' : ''}`}
-                onClick={() => {
-                  setCanvasSize(r);
-                  setOpen(false);
-                }}
-              >
-                {r}
-              </button>
-            ))}
+        <div className="record-settings-menu" role="menu">
+          <div className="record-settings-group">
+            <div className="record-settings-label">画布比例</div>
+            <div className="record-settings-segmented">
+              {RATIOS.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  className={`record-settings-segment${
+                    r === canvasSize ? ' active' : ''
+                  }`}
+                  onClick={() => setCanvasSize(r)}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
           </div>
-        </>
+
+          <div className="record-settings-divider" />
+
+          <div className="record-settings-group">
+            <div className="record-settings-label">录制内容</div>
+            <div className="record-settings-row">
+              <button
+                type="button"
+                className={`record-settings-pill${
+                  recordWithBackground ? ' active' : ''
+                }`}
+                onClick={() => setRecordWithBackground(true)}
+                aria-pressed={recordWithBackground}
+              >
+                <ImageIcon size={13} />
+                <span>带背景</span>
+              </button>
+              <button
+                type="button"
+                className={`record-settings-pill${
+                  !recordWithBackground ? ' active' : ''
+                }`}
+                onClick={() => setRecordWithBackground(false)}
+                aria-pressed={!recordWithBackground}
+              >
+                <Scissors size={13} />
+                <span>纯视频</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-export function Header({ onOpenFloating, floatingActive }: HeaderProps) {
+interface SceneSwitcherProps {
+  onRequestScreen: () => void | Promise<void>;
+}
+
+function SceneSwitcher({ onRequestScreen }: SceneSwitcherProps) {
+  const scene = useStudio((s) => s.scene);
+  const setScene = useStudio((s) => s.setScene);
+
+  const pick = (id: SceneId) => {
+    setScene(id);
+    if (scenes[id].autoShare) {
+      void onRequestScreen();
+    }
+  };
+
+  return (
+    <div className="scene-switcher" role="tablist">
+      {sceneOrder.map((id) => {
+        const s = scenes[id];
+        const active = scene === id;
+        return (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            className={`scene-switcher-btn${active ? ' active' : ''}`}
+            onClick={() => pick(id)}
+            title={s.description}
+          >
+            {s.name}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function formatTime(s: number): string {
+  if (!Number.isFinite(s) || s < 0) s = 0;
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${String(sec).padStart(2, '0')}`;
+}
+
+function HeaderVideoControls() {
+  const bgSource = useStudio((s) => s.bgSource);
+  const videoUrl = useStudio((s) => s.videoUrl);
+  const videoPlaying = useStudio((s) => s.videoPlaying);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  useEffect(() => {
+    if (bgSource !== 'video' || !videoUrl) return;
+    let v: HTMLVideoElement | null = null;
+    let raf = 0;
+    const find = () => {
+      v = document.querySelector(
+        'video.uploaded-video'
+      ) as HTMLVideoElement | null;
+      if (!v) {
+        raf = window.requestAnimationFrame(find);
+        return;
+      }
+      const onTime = () => setCurrentTime(v!.currentTime);
+      const onMeta = () => setDuration(v!.duration || 0);
+      v.addEventListener('timeupdate', onTime);
+      v.addEventListener('loadedmetadata', onMeta);
+      v.addEventListener('durationchange', onMeta);
+      if (v.readyState >= 1) {
+        setDuration(v.duration || 0);
+        setCurrentTime(v.currentTime);
+      }
+      cleanup = () => {
+        v?.removeEventListener('timeupdate', onTime);
+        v?.removeEventListener('loadedmetadata', onMeta);
+        v?.removeEventListener('durationchange', onMeta);
+      };
+    };
+    let cleanup: (() => void) | null = null;
+    find();
+    return () => {
+      if (raf) window.cancelAnimationFrame(raf);
+      cleanup?.();
+    };
+  }, [bgSource, videoUrl]);
+
+  if (bgSource !== 'video' || !videoUrl) return null;
+
+  const onToggle = () => {
+    const v = document.querySelector(
+      'video.uploaded-video'
+    ) as HTMLVideoElement | null;
+    if (!v) return;
+    if (v.paused) void v.play();
+    else v.pause();
+  };
+
+  const onSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = document.querySelector(
+      'video.uploaded-video'
+    ) as HTMLVideoElement | null;
+    if (!v) return;
+    const next = Number(e.target.value);
+    v.currentTime = next;
+    setCurrentTime(next);
+  };
+
+  return (
+    <div className="header-video-controls">
+      <button
+        type="button"
+        className="header-video-play"
+        onClick={onToggle}
+        aria-label={videoPlaying ? '暂停' : '播放'}
+      >
+        {videoPlaying ? <Pause size={13} /> : <Play size={13} />}
+      </button>
+      <input
+        type="range"
+        className="header-video-progress"
+        min={0}
+        max={duration || 0}
+        step={0.1}
+        value={Math.min(currentTime, duration || 0)}
+        onChange={onSeek}
+        disabled={!duration}
+      />
+      <span className="header-video-time">{formatTime(currentTime)}</span>
+    </div>
+  );
+}
+
+export function Header({ onRequestScreen }: HeaderProps) {
   const isRecording = useStudio((s) => s.isRecording);
   const recordingDuration = useStudio((s) => s.recordingDuration);
   const teleprompterVisible = useStudio((s) => s.teleprompterVisible);
@@ -74,7 +252,6 @@ export function Header({ onOpenFloating, floatingActive }: HeaderProps) {
   const togglePanelHidden = useStudio((s) => s.togglePanelHidden);
   const startRecordingAction = useStudio((s) => s.startRecordingAction);
   const stopRecordingAction = useStudio((s) => s.stopRecordingAction);
-  const showToast = useStudio((s) => s.showToast);
 
   return (
     <header
@@ -122,6 +299,7 @@ export function Header({ onOpenFloating, floatingActive }: HeaderProps) {
         >
           v0.1
         </span>
+        <SceneSwitcher onRequestScreen={onRequestScreen} />
       </div>
 
       <div className="flex items-center gap-1">
@@ -133,6 +311,7 @@ export function Header({ onOpenFloating, floatingActive }: HeaderProps) {
         >
           {panelHidden ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
         </button>
+        <HeaderVideoControls />
         <button
           id="toggleTeleprompter"
           className={`header-btn${teleprompterVisible ? ' active' : ''}`}
@@ -143,37 +322,7 @@ export function Header({ onOpenFloating, floatingActive }: HeaderProps) {
           <Type size={14} />
           <span>提词器</span>
         </button>
-        <button
-          id="pipBtn"
-          className={`header-btn${floatingActive ? ' active' : ''}`}
-          onClick={onOpenFloating}
-          title="悬浮工作台 · 永远置顶"
-          aria-label="floating studio"
-        >
-          <PictureInPicture2 size={14} />
-          <span>悬浮</span>
-        </button>
-        <button
-          className="header-btn"
-          onClick={() => showToast('导出功能 v1.0 实现')}
-          title="导出"
-          aria-label="export"
-        >
-          <Download size={14} />
-          <span>导出</span>
-        </button>
-        <button
-          className="header-btn"
-          onClick={() => showToast('设置 v1.0 补充')}
-          title="设置"
-          aria-label="settings"
-        >
-          <Settings size={14} />
-          <span>设置</span>
-        </button>
-        <div style={{ width: 8 }} />
-        <RatioQuickPicker />
-        <div style={{ width: 6 }} />
+        <RecordSettings />
         <button
           className={`record-btn${isRecording ? ' recording' : ''}`}
           onClick={isRecording ? stopRecordingAction : startRecordingAction}

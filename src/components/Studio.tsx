@@ -4,23 +4,19 @@ import { useEffect } from 'react';
 import { useCamera } from '@/hooks/useCamera';
 import { useScreenShare } from '@/hooks/useScreenShare';
 import { useHotkeys } from '@/hooks/useHotkeys';
-import { useFloatingStudio } from '@/hooks/useFloatingStudio';
 import { useStudio } from '@/lib/store';
 import { Header } from './Header';
 import { Toolbar } from './Toolbar';
 import { Stage } from './Stage';
 import { RightPanel } from './RightPanel';
-import { ScenesBar } from './ScenesBar';
 import { Teleprompter } from './Teleprompter';
 import { Toast } from './Toast';
 import { RecordCountdown } from './RecordCountdown';
-import RatioSuggestion from './RatioSuggestion';
 
 export function Studio() {
   useHotkeys();
-  const { stream } = useCamera();
+  useCamera();
   const { request: requestScreen } = useScreenShare();
-  const floating = useFloatingStudio(stream);
   const panelHidden = useStudio((s) => s.panelHidden);
 
   useEffect(() => {
@@ -58,12 +54,7 @@ export function Studio() {
   return (
     <>
       <div className="flex flex-col h-screen">
-        <Header
-          onOpenFloating={() =>
-            floating.active ? floating.close() : void floating.open()
-          }
-          floatingActive={floating.active}
-        />
+        <Header onRequestScreen={requestScreen} />
         <main
           className="min-h-0"
           style={{
@@ -76,7 +67,6 @@ export function Studio() {
           <Toolbar />
           <div className="main-center">
             <Stage onRequestScreen={requestScreen} />
-            <ScenesBar onRequestScreen={requestScreen} />
           </div>
           <div
             className="right-panel-wrap"
@@ -96,7 +86,6 @@ export function Studio() {
       <Teleprompter />
       <Toast />
       <RecordCountdown />
-      <RatioSuggestion />
     </>
   );
 }

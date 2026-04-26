@@ -68,7 +68,8 @@ export function useScreenShare() {
       sharedScreen = null;
       notify();
     }
-  }, []);
+    setBgSource('board');
+  }, [setBgSource]);
 
   return { status, stream, videoRef, request, stop };
 }

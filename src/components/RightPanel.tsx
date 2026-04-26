@@ -1,17 +1,15 @@
 'use client';
 
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   useStudio,
-  type CanvasSize,
   type WebcamShape,
   type BeautyMode,
   type PanelKey,
   type VideoFit,
 } from '@/lib/store';
-import { BackgroundPicker, STAGE_COLOR_PRESETS } from './BackgroundPicker';
+import { BackgroundPicker } from './BackgroundPicker';
 import { useScreenShare } from '@/hooks/useScreenShare';
-import { Trash2, Volume2, VolumeX } from 'lucide-react';
 
 const BORDER_PRESETS: { name: string; value: string }[] = [
   { name: '白', value: '#FFFFFF' },
@@ -184,8 +182,6 @@ const SHAPES: { v: WebcamShape; label: string; icon: React.ReactNode }[] = [
 
 const BEAUTY_MODES: BeautyMode[] = ['关闭', '自然', '明亮', '柔光'];
 
-const RATIOS: CanvasSize[] = ['9:16', '16:9', '16:10', '3:4', '1:1'];
-
 function SectionHeader({
   panelKey,
   label,
@@ -226,44 +222,18 @@ function SectionHeader({
 export function RightPanel() {
   const webcamShape = useStudio((s) => s.webcamShape);
   const webcamSize = useStudio((s) => s.webcamSize);
-  const canvasSize = useStudio((s) => s.canvasSize);
   const border = useStudio((s) => s.border);
   const beauty = useStudio((s) => s.beauty);
   const panelCollapsed = useStudio((s) => s.panelCollapsed);
 
   const setWebcamShape = useStudio((s) => s.setWebcamShape);
   const setWebcamSize = useStudio((s) => s.setWebcamSize);
-  const setCanvasSize = useStudio((s) => s.setCanvasSize);
   const setBorder = useStudio((s) => s.setBorder);
   const setBeauty = useStudio((s) => s.setBeauty);
 
   return (
     <aside className="right-panel">
       <div className="right-panel-scroll">
-        <div className="panel-section">
-          <SectionHeader
-            panelKey="ratio"
-            label="画布比例"
-            collapsed={panelCollapsed.ratio}
-          />
-          {!panelCollapsed.ratio && (
-            <div className="panel-section-body">
-              <div className="grid-4">
-                {RATIOS.map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    className={`card-btn mono ${canvasSize === r ? 'active' : ''}`}
-                    onClick={() => setCanvasSize(r)}
-                  >
-                    {r}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
         <div className="panel-section persona-panel">
           <SectionHeader
             panelKey="persona"
@@ -387,13 +357,16 @@ export function RightPanel() {
           )}
         </div>
 
-        <VideoCardSection />
-
         <BackgroundSection />
 
-        <ScreenSharePanel />
+        <VideoCardSection />
+        <VideoSpeedSection />
+        <VideoFitSection />
+        <VideoReselectSection />
 
-        <VideoPanel />
+        <ScreenSharePanel />
+        <ScreenFitSection />
+        <ScreenReselectSection />
       </div>
 
       <div className="right-panel-footer">
@@ -412,330 +385,6 @@ const FIT_OPTIONS: { value: VideoFit; label: string }[] = [
   { value: 'center', label: '原尺寸' },
 ];
 
-function VideoPanel() {
-  const videoFile = useStudio((s) => s.videoFile);
-  const videoTransform = useStudio((s) => s.videoTransform);
-  const videoPlaybackRate = useStudio((s) => s.videoPlaybackRate);
-  const videoVolume = useStudio((s) => s.videoVolume);
-  const videoMuted = useStudio((s) => s.videoMuted);
-  const collapsed = useStudio((s) => s.panelCollapsed.video);
-  const setVideoFile = useStudio((s) => s.setVideoFile);
-  const setVideoTransform = useStudio((s) => s.setVideoTransform);
-  const setVideoPlaybackRate = useStudio((s) => s.setVideoPlaybackRate);
-  const setVideoVolume = useStudio((s) => s.setVideoVolume);
-  const setVideoMuted = useStudio((s) => s.setVideoMuted);
-  const removeVideo = useStudio((s) => s.removeVideo);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  if (!videoFile) return null;
-
-  const xVal = Math.round(videoTransform.x);
-  const yVal = Math.round(videoTransform.y);
-
-  const openFilePicker = () => fileInputRef.current?.click();
-  const onFilePicked = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) setVideoFile(file);
-    e.target.value = '';
-  };
-
-  return (
-    <div className="panel-section video-panel">
-      <SectionHeader panelKey="video" label="视频" collapsed={collapsed} />
-      {!collapsed && (
-        <div className="panel-section-body">
-          <div className="video-file-info">
-            <div className="video-filename" title={videoFile.name}>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              >
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-              </svg>
-              <span className="filename-text">{videoFile.name}</span>
-            </div>
-            <button
-              type="button"
-              className="video-action-btn"
-              onClick={openFilePicker}
-              title="重新选择视频"
-            >
-              重新选择
-            </button>
-            <input
-              type="file"
-              accept="video/*"
-              hidden
-              ref={fileInputRef}
-              onChange={onFilePicked}
-            />
-          </div>
-
-          <div className="sub-section">
-            <div className="sub-label">播放速度</div>
-            <div className="grid-5">
-              {SPEED_OPTIONS.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  className={`card-btn sm mono ${videoPlaybackRate === s ? 'active' : ''}`}
-                  onClick={() => setVideoPlaybackRate(s)}
-                >
-                  {s}x
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="sub-section">
-            <div className="sub-label">展示模式</div>
-            <div className="grid-4">
-              {FIT_OPTIONS.map((f) => (
-                <button
-                  key={f.value}
-                  type="button"
-                  className={`card-btn sm ${videoTransform.fit === f.value ? 'active' : ''}`}
-                  onClick={() => setVideoTransform({ fit: f.value })}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="sub-section">
-            <div className="sub-label-row">
-              <span className="sub-label">音量</span>
-              <button
-                type="button"
-                className="mute-btn"
-                onClick={() => setVideoMuted(!videoMuted)}
-                title={videoMuted ? '取消静音' : '静音'}
-              >
-                {videoMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
-              </button>
-            </div>
-            <div className="slider-row">
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={Math.round(videoVolume * 100)}
-                onChange={(e) => setVideoVolume(Number(e.target.value) / 100)}
-                className="value-slider"
-                disabled={videoMuted}
-              />
-              <span className="slider-value">
-                {Math.round(videoVolume * 100)}%
-              </span>
-            </div>
-          </div>
-
-          <div className="sub-section">
-            <div className="sub-label-row">
-              <span className="sub-label">尺寸</span>
-              <span className="slider-value">
-                {Math.round(videoTransform.scale * 100)}%
-              </span>
-            </div>
-            <div className="slider-row">
-              <input
-                type="range"
-                min={20}
-                max={200}
-                value={Math.round(videoTransform.scale * 100)}
-                onChange={(e) =>
-                  setVideoTransform({ scale: Number(e.target.value) / 100 })
-                }
-                className="value-slider"
-              />
-            </div>
-          </div>
-
-          <div className="sub-section">
-            <div className="sub-label">位置</div>
-            <div className="axis-row">
-              <span className="axis-label">X</span>
-              <input
-                type="range"
-                min={-400}
-                max={400}
-                value={xVal}
-                onChange={(e) =>
-                  setVideoTransform({ x: Number(e.target.value) })
-                }
-                className="value-slider"
-              />
-              <span className="slider-value">
-                {xVal > 0 ? '+' : ''}
-                {xVal}
-              </span>
-            </div>
-            <div className="axis-row">
-              <span className="axis-label">Y</span>
-              <input
-                type="range"
-                min={-400}
-                max={400}
-                value={yVal}
-                onChange={(e) =>
-                  setVideoTransform({ y: Number(e.target.value) })
-                }
-                className="value-slider"
-              />
-              <span className="slider-value">
-                {yVal > 0 ? '+' : ''}
-                {yVal}
-              </span>
-            </div>
-            <button
-              type="button"
-              className="reset-pos-btn"
-              onClick={() => setVideoTransform({ x: 0, y: 0 })}
-              title="重置位置到中心"
-            >
-              重置位置
-            </button>
-          </div>
-
-          <button
-            type="button"
-            className="remove-video-btn"
-            onClick={removeVideo}
-          >
-            <Trash2 size={14} />
-            移除视频
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ScreenSharePanel() {
-  const bgSource = useStudio((s) => s.bgSource);
-  const screenTransform = useStudio((s) => s.screenTransform);
-  const collapsed = useStudio((s) => s.panelCollapsed.screen);
-  const setScreenTransform = useStudio((s) => s.setScreenTransform);
-  const resetScreenTransform = useStudio((s) => s.resetScreenTransform);
-  const { stop } = useScreenShare();
-
-  if (bgSource !== 'screen') return null;
-
-  const pct = Math.round(screenTransform.scale * 100);
-
-  return (
-    <div className="panel-section screen-share-panel">
-      <SectionHeader
-        panelKey="screen"
-        label="屏幕共享"
-        collapsed={collapsed}
-      />
-      {!collapsed && (
-        <div className="panel-section-body">
-          <div className="screen-status">
-            <div className="screen-status-icon">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <rect x="2" y="3" width="20" height="14" rx="2" />
-                <line x1="8" y1="21" x2="16" y2="21" />
-                <line x1="12" y1="17" x2="12" y2="21" />
-              </svg>
-            </div>
-            <div className="screen-status-text">
-              <span className="screen-status-title">共享中</span>
-              <span className="screen-status-dot" aria-hidden="true" />
-            </div>
-          </div>
-
-          <div className="sub-section">
-            <div className="sub-label">展示模式</div>
-            <div className="grid-2">
-              <button
-                type="button"
-                className={`card-btn sm ${
-                  screenTransform.fit === 'contain' ? 'active' : ''
-                }`}
-                onClick={() => setScreenTransform({ fit: 'contain' })}
-              >
-                适配
-              </button>
-              <button
-                type="button"
-                className={`card-btn sm ${
-                  screenTransform.fit === 'cover' ? 'active' : ''
-                }`}
-                onClick={() => setScreenTransform({ fit: 'cover' })}
-              >
-                铺满
-              </button>
-            </div>
-          </div>
-
-          <div className="sub-section">
-            <div className="sub-label-row">
-              <span className="sub-label">尺寸</span>
-              <span className="slider-value">{pct}%</span>
-            </div>
-            <div className="slider-row">
-              <input
-                type="range"
-                min={50}
-                max={200}
-                value={pct}
-                onChange={(e) =>
-                  setScreenTransform({ scale: Number(e.target.value) / 100 })
-                }
-                className="value-slider"
-              />
-            </div>
-          </div>
-
-          <button
-            type="button"
-            className="card-btn sm full-width reset-screen-btn"
-            onClick={resetScreenTransform}
-            title="重置缩放与位置"
-          >
-            重置
-          </button>
-
-          <button
-            type="button"
-            className="end-share-btn"
-            onClick={stop}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <rect x="4" y="4" width="16" height="16" rx="2" />
-              <line x1="9" y1="9" x2="15" y2="15" />
-              <line x1="15" y1="9" x2="9" y2="15" />
-            </svg>
-            结束共享
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 const SHADOW_PRESETS: { v: 'none' | 'small' | 'medium' | 'large'; label: string }[] = [
   { v: 'none', label: '无' },
   { v: 'small', label: '小' },
@@ -743,15 +392,121 @@ const SHADOW_PRESETS: { v: 'none' | 'small' | 'medium' | 'large'; label: string 
   { v: 'large', label: '大' },
 ];
 
+function CardShapeControls() {
+  const videoCard = useStudio((s) => s.videoCard);
+  const setVideoCard = useStudio((s) => s.setVideoCard);
+
+  return (
+    <>
+      <div className="panel-row">
+        <label>圆角</label>
+        <input
+          type="range"
+          min={0}
+          max={48}
+          value={videoCard.borderRadius}
+          onChange={(e) =>
+            setVideoCard({ borderRadius: Number(e.target.value) })
+          }
+        />
+        <span>{videoCard.borderRadius}px</span>
+      </div>
+      <div className="panel-row">
+        <label>投影</label>
+        <div className="shadow-options">
+          {SHADOW_PRESETS.map((s) => (
+            <button
+              key={s.v}
+              type="button"
+              className={`shadow-btn${
+                videoCard.shadow === s.v ? ' active' : ''
+              }`}
+              onClick={() => setVideoCard({ shadow: s.v })}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function ScreenSharePanel() {
+  const bgSource = useStudio((s) => s.bgSource);
+  const videoCard = useStudio((s) => s.videoCard);
+  const setVideoCard = useStudio((s) => s.setVideoCard);
+  const resetScreenTransform = useStudio((s) => s.resetScreenTransform);
+  const { stream } = useScreenShare();
+  const sectionRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (stream && sectionRef.current) {
+      sectionRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  }, [stream]);
+
+  if (bgSource !== 'screen') return null;
+
+  const pct = Math.round(videoCard.scale * 100);
+
+  return (
+    <div ref={sectionRef} className="panel-section screen-share-panel">
+      <h3 className="panel-section-title">屏幕共享</h3>
+      <div className="panel-section-body">
+        <div className="panel-row">
+          <label>大小</label>
+          <input
+            type="range"
+            min={30}
+            max={150}
+            value={pct}
+            onChange={(e) =>
+              setVideoCard({ scale: Number(e.target.value) / 100 })
+            }
+          />
+          <span>{pct}%</span>
+        </div>
+        <CardShapeControls />
+        <button
+          type="button"
+          className="card-btn sm full-width reset-screen-btn"
+          onClick={() => {
+            setVideoCard({ scale: 1 });
+            resetScreenTransform();
+          }}
+          title="重置缩放与位置"
+        >
+          重置
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function VideoCardSection() {
   const videoUrl = useStudio((s) => s.videoUrl);
   const videoCard = useStudio((s) => s.videoCard);
   const setVideoCard = useStudio((s) => s.setVideoCard);
+  const resetVideoCard = useStudio((s) => s.resetVideoCard);
+  const sectionRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (videoUrl && sectionRef.current) {
+      sectionRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  }, [videoUrl]);
 
   if (!videoUrl) return null;
 
   return (
-    <div className="panel-section video-card-panel">
+    <div ref={sectionRef} className="panel-section video-card-panel">
       <h3 className="panel-section-title">视频卡片</h3>
       <div className="panel-section-body">
         <div className="panel-row">
@@ -767,36 +522,207 @@ function VideoCardSection() {
           />
           <span>{Math.round(videoCard.scale * 100)}%</span>
         </div>
-        <div className="panel-row">
-          <label>圆角</label>
-          <input
-            type="range"
-            min={0}
-            max={48}
-            value={videoCard.borderRadius}
-            onChange={(e) =>
-              setVideoCard({ borderRadius: Number(e.target.value) })
-            }
-          />
-          <span>{videoCard.borderRadius}px</span>
+        <CardShapeControls />
+        <button
+          type="button"
+          className="card-btn sm full-width"
+          onClick={resetVideoCard}
+          title="重置视频卡片"
+        >
+          重置
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function VideoSpeedSection() {
+  const videoUrl = useStudio((s) => s.videoUrl);
+  const videoPlaybackRate = useStudio((s) => s.videoPlaybackRate);
+  const setVideoPlaybackRate = useStudio((s) => s.setVideoPlaybackRate);
+
+  if (!videoUrl) return null;
+
+  return (
+    <div className="panel-section">
+      <h3 className="panel-section-title">播放速度</h3>
+      <div className="panel-section-body">
+        <div className="grid-5">
+          {SPEED_OPTIONS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              className={`card-btn sm mono ${
+                videoPlaybackRate === s ? 'active' : ''
+              }`}
+              onClick={() => setVideoPlaybackRate(s)}
+            >
+              {s}x
+            </button>
+          ))}
         </div>
-        <div className="panel-row">
-          <label>投影</label>
-          <div className="shadow-options">
-            {SHADOW_PRESETS.map((s) => (
-              <button
-                key={s.v}
-                type="button"
-                className={`shadow-btn${
-                  videoCard.shadow === s.v ? ' active' : ''
-                }`}
-                onClick={() => setVideoCard({ shadow: s.v })}
-              >
-                {s.label}
-              </button>
-            ))}
+      </div>
+    </div>
+  );
+}
+
+function VideoFitSection() {
+  const videoUrl = useStudio((s) => s.videoUrl);
+  const videoTransform = useStudio((s) => s.videoTransform);
+  const setVideoTransform = useStudio((s) => s.setVideoTransform);
+
+  if (!videoUrl) return null;
+
+  return (
+    <div className="panel-section">
+      <h3 className="panel-section-title">展示模式</h3>
+      <div className="panel-section-body">
+        <div className="grid-4">
+          {FIT_OPTIONS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              className={`card-btn sm ${
+                videoTransform.fit === f.value ? 'active' : ''
+              }`}
+              onClick={() => setVideoTransform({ fit: f.value })}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VideoReselectSection() {
+  const videoFile = useStudio((s) => s.videoFile);
+  const setVideoFile = useStudio((s) => s.setVideoFile);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  if (!videoFile) return null;
+
+  const onFilePicked = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) setVideoFile(file);
+    e.target.value = '';
+  };
+
+  return (
+    <div className="panel-section">
+      <h3 className="panel-section-title">视频重新选择</h3>
+      <div className="panel-section-body">
+        <div className="video-file-info">
+          <div className="video-filename" title={videoFile.name}>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+            </svg>
+            <span className="filename-text">{videoFile.name}</span>
           </div>
+          <button
+            type="button"
+            className="video-action-btn"
+            onClick={() => fileInputRef.current?.click()}
+            title="重新选择视频"
+          >
+            重新选择
+          </button>
+          <input
+            type="file"
+            accept="video/*"
+            hidden
+            ref={fileInputRef}
+            onChange={onFilePicked}
+          />
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ScreenFitSection() {
+  const bgSource = useStudio((s) => s.bgSource);
+  const screenTransform = useStudio((s) => s.screenTransform);
+  const setScreenTransform = useStudio((s) => s.setScreenTransform);
+
+  if (bgSource !== 'screen') return null;
+
+  return (
+    <div className="panel-section">
+      <h3 className="panel-section-title">展示模式</h3>
+      <div className="panel-section-body">
+        <div className="grid-2">
+          <button
+            type="button"
+            className={`card-btn sm ${
+              screenTransform.fit === 'contain' ? 'active' : ''
+            }`}
+            onClick={() => setScreenTransform({ fit: 'contain' })}
+          >
+            适配
+          </button>
+          <button
+            type="button"
+            className={`card-btn sm ${
+              screenTransform.fit === 'cover' ? 'active' : ''
+            }`}
+            onClick={() => setScreenTransform({ fit: 'cover' })}
+          >
+            铺满
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ScreenReselectSection() {
+  const bgSource = useStudio((s) => s.bgSource);
+  const { request, stop } = useScreenShare();
+
+  if (bgSource !== 'screen') return null;
+
+  return (
+    <div className="panel-section">
+      <h3 className="panel-section-title">重新选择共享屏幕</h3>
+      <div className="panel-section-body">
+        <button
+          type="button"
+          className="card-btn sm full-width"
+          onClick={() => {
+            void request();
+          }}
+        >
+          选择新屏幕
+        </button>
+        <button
+          type="button"
+          className="end-share-btn"
+          onClick={stop}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <rect x="4" y="4" width="16" height="16" rx="2" />
+            <line x1="9" y1="9" x2="15" y2="15" />
+            <line x1="15" y1="9" x2="9" y2="15" />
+          </svg>
+          结束共享
+        </button>
       </div>
     </div>
   );
@@ -804,8 +730,6 @@ function VideoCardSection() {
 
 function BackgroundSection() {
   const collapsed = useStudio((s) => s.panelCollapsed.background);
-  const stageColor = useStudio((s) => s.stageColor);
-  const setStageColor = useStudio((s) => s.setStageColor);
   const resetBackgroundAll = useStudio((s) => s.resetBackgroundAll);
 
   return (
@@ -817,61 +741,7 @@ function BackgroundSection() {
       />
       {!collapsed && (
         <div className="panel-section-body">
-          <div className="sub-section">
-            <div className="sub-label-row">
-              <span className="sub-label">画板</span>
-              <span className="sub-hint">会进入成片</span>
-            </div>
-            <div className="swatch-row">
-              {STAGE_COLOR_PRESETS.map((c) => {
-                const active =
-                  stageColor.toUpperCase() === c.value.toUpperCase();
-                const isWhite = c.value.toUpperCase() === '#FFFFFF';
-                return (
-                  <button
-                    key={c.value}
-                    type="button"
-                    className={`swatch${active ? ' swatch-active' : ''}`}
-                    style={{
-                      background: c.value,
-                      ...(isWhite
-                        ? {
-                            boxShadow:
-                              'inset 0 0 0 1px #E4E4E7, 0 1px 2px rgba(0,0,0,0.06)',
-                          }
-                        : {}),
-                    }}
-                    onClick={() => setStageColor(c.value)}
-                    title={c.name}
-                  />
-                );
-              })}
-            </div>
-            <div className="custom-picker">
-              <input
-                type="color"
-                className="picker-dot"
-                value={stageColor}
-                onChange={(e) => setStageColor(e.target.value)}
-              />
-              <input
-                type="text"
-                className="hex-field"
-                value={stageColor.toUpperCase()}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (/^#[0-9A-Fa-f]{6}$/.test(v)) setStageColor(v);
-                }}
-                maxLength={7}
-                placeholder="#FFFFFF"
-              />
-            </div>
-          </div>
-
-          <div className="sub-section">
-            <div className="sub-label">背景</div>
-            <BackgroundPicker />
-          </div>
+          <BackgroundPicker />
 
           <button
             type="button"
