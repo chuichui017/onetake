@@ -1,6 +1,6 @@
 'use client';
 
-import type { CSSProperties } from 'react';
+import { type CSSProperties } from 'react';
 import { useStudio } from '@/lib/store';
 import { useScreenShare } from '@/hooks/useScreenShare';
 
@@ -137,6 +137,59 @@ export function CanvasHint({
   );
 }
 
+function WhiteboardHint() {
+  const dismissHint = useStudio((s) => s.dismissHint);
+
+  return (
+    <>
+      <div className="stage-hint-icon">
+        <svg
+          width="40"
+          height="40"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+        >
+          <path d="M12 20h9" />
+          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+        </svg>
+      </div>
+      <h3 className="stage-hint-title">空白画板</h3>
+      <p className="stage-hint-desc">自由创作空间 · 在这里绘画</p>
+      <div className="stage-hint-shortcuts">
+        <span>
+          <kbd>D</kbd>画画
+        </span>
+        <span>
+          <kbd>T</kbd>打字
+        </span>
+        <span>
+          <kbd>R</kbd>矩形
+        </span>
+      </div>
+      <div className="stage-hint-actions">
+        <CameraPreviewBtn />
+        <button className="stage-hint-btn primary" onClick={dismissHint}>
+          <span className="stage-hint-btn-icon">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M12 19V6M5 12l7-7 7 7" />
+            </svg>
+          </span>
+          开始创作
+        </button>
+      </div>
+    </>
+  );
+}
+
 function LectureHint() {
   return (
     <>
@@ -260,51 +313,3 @@ function KoubaoHint() {
   );
 }
 
-function WhiteboardHint() {
-  const dismissHint = useStudio((s) => s.dismissHint);
-
-  return (
-    <>
-      <div className="stage-hint-icon">
-        <svg
-          width="40"
-          height="40"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-        >
-          <path d="M12 20h9" />
-          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-        </svg>
-      </div>
-      <h3 className="stage-hint-title">空白画板</h3>
-      <p className="stage-hint-desc">自由创作空间</p>
-
-      <div className="stage-hint-shortcuts">
-        <span><kbd>D</kbd>画画</span>
-        <span><kbd>T</kbd>打字</span>
-        <span><kbd>R</kbd>矩形</span>
-      </div>
-
-      <div className="stage-hint-actions">
-        <CameraPreviewBtn />
-        <button className="stage-hint-btn primary" onClick={dismissHint}>
-          <span className="stage-hint-btn-icon">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M12 19V6M5 12l7-7 7 7" />
-            </svg>
-          </span>
-          开始创作
-        </button>
-      </div>
-    </>
-  );
-}

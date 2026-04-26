@@ -1,11 +1,40 @@
 'use client';
 
-import { Tldraw } from '@tldraw/tldraw';
+import { Tldraw, type Editor } from '@tldraw/tldraw';
+
+let sharedEditor: Editor | null = null;
+const subscribers = new Set<(e: Editor | null) => void>();
+
+function notify() {
+  subscribers.forEach((fn) => fn(sharedEditor));
+}
+
+export function getTldrawEditor(): Editor | null {
+  return sharedEditor;
+}
+
+export function subscribeTldrawEditor(fn: (e: Editor | null) => void) {
+  subscribers.add(fn);
+  return () => {
+    subscribers.delete(fn);
+  };
+}
 
 export default function TldrawCanvas() {
   return (
     <div className="tldraw-host">
-      <Tldraw />
+      <Tldraw
+        onMount={(editor) => {
+          sharedEditor = editor;
+          notify();
+          return () => {
+            if (sharedEditor === editor) {
+              sharedEditor = null;
+              notify();
+            }
+          };
+        }}
+      />
     </div>
   );
 }
