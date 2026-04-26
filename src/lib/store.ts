@@ -113,11 +113,14 @@ interface PersistedTele {
   teleNotchMode: boolean;
   teleSpeed: number;
   teleText: string;
+  teleCollapsed: boolean;
+  voiceSync: boolean;
   panelCollapsed: PanelCollapsedMap;
   stageColor: string;
   panelHidden: boolean;
   recordWithBackground: boolean;
   videoCard: VideoCard;
+  hintDismissed: boolean;
 }
 
 export type VideoCardShadow = 'none' | 'small' | 'medium' | 'large';
@@ -148,8 +151,27 @@ const VIDEO_SHADOWS_CSS: Record<
   large: { blur: 64, offsetY: 24, color: 'rgba(0,0,0,0.25)' },
 };
 
+export interface SceneState {
+  videoFile: File | null;
+  videoUrl: string | null;
+  videoPlaying: boolean;
+  videoMuted: boolean;
+  videoVolume: number;
+  videoPlaybackRate: number;
+  videoTransform: VideoTransform;
+  bgSource: BgSource;
+  webcamShape: WebcamShape;
+  webcamSize: number;
+  customWebcamPos: Pos | null;
+  background: BackgroundState;
+  stageColor: string;
+  videoCard: VideoCard;
+  canvasRatio: CanvasSize;
+}
+
 interface StudioState extends PersistedTele {
   scene: SceneId;
+  sceneStates: Partial<Record<SceneId, SceneState>>;
   webcamShape: WebcamShape;
   webcamSize: number;
   customWebcamPos: Pos | null;
@@ -260,7 +282,15 @@ const defaultTeleText = `欢迎来到 OneTake——一个为中文科技/AI 博�
 白板即舞台，提词在眼前，屏幕可分屏，一键即录制。
 按 空格 开始/暂停提词；按 1/2/3/4 切换场景；拖动人像到任何位置。`;
 
-const persisted = (s: StudioState): PersistedTele => ({
+const stripSceneRuntime = (s: SceneState): SceneState => ({
+  ...s,
+  videoFile: null,
+  videoUrl: null,
+  videoPlaying: false,
+});
+
+const persisted = (s: StudioState): Partial<StudioState> => ({
+  // teleprompter prefs
   telePos: s.telePos,
   teleSize: s.teleSize,
   teleTheme: s.teleTheme,
@@ -269,11 +299,39 @@ const persisted = (s: StudioState): PersistedTele => ({
   teleNotchMode: s.teleNotchMode,
   teleSpeed: s.teleSpeed,
   teleText: s.teleText,
+  teleCollapsed: s.teleCollapsed,
+  voiceSync: s.voiceSync,
+  // panel prefs
   panelCollapsed: s.panelCollapsed,
-  stageColor: s.stageColor,
   panelHidden: s.panelHidden,
+  // record prefs
   recordWithBackground: s.recordWithBackground,
+  // scene
+  scene: s.scene,
+  sceneStates: Object.fromEntries(
+    Object.entries(s.sceneStates).map(([k, v]) => [
+      k,
+      v ? stripSceneRuntime(v) : v,
+    ])
+  ) as Partial<Record<SceneId, SceneState>>,
+  // top-level scene-derived state (mirrors current scene's snapshot)
+  webcamShape: s.webcamShape,
+  webcamSize: s.webcamSize,
+  customWebcamPos: s.customWebcamPos,
+  canvasSize: s.canvasSize,
+  bgSource: s.bgSource,
+  background: s.background,
+  customGradient: s.customGradient,
+  videoTransform: s.videoTransform,
+  videoMuted: s.videoMuted,
+  videoVolume: s.videoVolume,
+  videoPlaybackRate: s.videoPlaybackRate,
+  border: s.border,
+  beauty: s.beauty,
+  stageColor: s.stageColor,
   videoCard: s.videoCard,
+  screenTransform: s.screenTransform,
+  hintDismissed: s.hintDismissed,
 });
 
 const DEFAULT_PANEL_COLLAPSED: PanelCollapsedMap = {
@@ -288,6 +346,7 @@ export const useStudio = create<StudioState>()(
   persist(
     (set, get) => ({
       scene: 1,
+      sceneStates: {},
       webcamShape: 'circle',
       webcamSize: 180,
       customWebcamPos: null,
@@ -346,14 +405,128 @@ export const useStudio = create<StudioState>()(
       layers: createDefaultLayers(),
 
       setScene: (id) => {
-        const p = scenes[id];
-        set({
-          scene: id,
-          webcamShape: p.webcamShape,
-          webcamSize: p.webcamSize,
-          bgSource: p.bgSource,
-          hintDismissed: false,
-        });
+        const cur = get().scene;
+        if (cur === id) return;
+
+        const snapshot: SceneState = {
+          videoFile: get().videoFile,
+          videoUrl: get().videoUrl,
+          videoPlaying: get().videoPlaying,
+          videoMuted: get().videoMuted,
+          videoVolume: get().videoVolume,
+          videoPlaybackRate: get().videoPlaybackRate,
+          videoTransform: { ...get().videoTransform },
+          bgSource: get().bgSource,
+          webcamShape: get().webcamShape,
+          webcamSize: get().webcamSize,
+          customWebcamPos: get().customWebcamPos,
+          background: { ...get().background },
+          stageColor: get().stageColor,
+          videoCard: { ...get().videoCard },
+          canvasRatio: get().canvasSize,
+        };
+        set((st) => ({
+          sceneStates: { ...st.sceneStates, [cur]: snapshot },
+        }));
+
+        const saved = get().sceneStates[id];
+        const buildBackgroundLayerSource = (bg: BackgroundState): LayerSource => {
+          if (bg.type === 'default') return { kind: 'color', value: '#FAFAFA' };
+          if (bg.type === 'solid') return { kind: 'color', value: bg.value };
+          if (bg.type === 'gradient') return { kind: 'gradient', value: bg.value };
+          if (bg.type === 'blur') {
+            return {
+              kind: 'blur',
+              strength: bg.blurStrength,
+              saturation: bg.blurSaturation,
+            };
+          }
+          return {
+            kind: 'pattern',
+            pattern: bg.pattern ?? 'dots',
+            color: bg.patternColor,
+            bgColor: bg.patternBase,
+            opacity: bg.patternOpacity,
+          };
+        };
+        const buildContentLayerSource = (
+          src: BgSource,
+          videoUrl: string | null,
+          playing: boolean
+        ): LayerSource => {
+          if (src === 'screen') return { kind: 'screen' };
+          if (src === 'video') {
+            return { kind: 'video-file', url: videoUrl, playing, currentTime: 0 };
+          }
+          return { kind: 'whiteboard' };
+        };
+
+        if (saved) {
+          set({
+            scene: id,
+            videoFile: saved.videoFile,
+            videoUrl: saved.videoUrl,
+            videoPlaying: saved.videoPlaying,
+            videoMuted: saved.videoMuted,
+            videoVolume: saved.videoVolume,
+            videoPlaybackRate: saved.videoPlaybackRate,
+            videoTransform: { ...saved.videoTransform },
+            bgSource: saved.bgSource,
+            webcamShape: saved.webcamShape,
+            webcamSize: saved.webcamSize,
+            customWebcamPos: saved.customWebcamPos,
+            background: { ...saved.background },
+            stageColor: saved.stageColor,
+            videoCard: { ...saved.videoCard },
+            canvasSize: saved.canvasRatio,
+            hintDismissed: false,
+            teleprompterVisible: false,
+          });
+          get().patchLayerByType('background', {
+            source: buildBackgroundLayerSource(saved.background),
+          });
+          get().patchLayerByType('content', {
+            source: buildContentLayerSource(
+              saved.bgSource,
+              saved.videoUrl,
+              saved.videoPlaying
+            ),
+          });
+          get().patchLayerByType('persona', {
+            style: { shape: saved.webcamShape },
+            transform: saved.customWebcamPos
+              ? {
+                  x: saved.customWebcamPos.left,
+                  y: saved.customWebcamPos.top,
+                  width: saved.webcamSize,
+                  height: saved.webcamSize,
+                }
+              : { width: saved.webcamSize, height: saved.webcamSize },
+          });
+        } else {
+          const p = scenes[id];
+          set({
+            scene: id,
+            webcamShape: p.webcamShape,
+            webcamSize: p.webcamSize,
+            customWebcamPos: null,
+            bgSource: p.bgSource,
+            canvasSize: '16:9',
+            hintDismissed: false,
+            teleprompterVisible: false,
+          });
+          get().patchLayerByType('persona', {
+            style: { shape: p.webcamShape },
+            transform: { width: p.webcamSize, height: p.webcamSize },
+          });
+          get().patchLayerByType('content', {
+            source: buildContentLayerSource(
+              p.bgSource,
+              get().videoUrl,
+              get().videoPlaying
+            ),
+          });
+        }
       },
       setWebcamShape: (s) => {
         set({ webcamShape: s });
@@ -584,10 +757,77 @@ export const useStudio = create<StudioState>()(
             }
           }
 
-          const bgColor = get().stageColor;
+          const stageRect = stageEl?.getBoundingClientRect() ?? null;
+          const canvasOut = getResolutionForRatio(ratio);
+          const screenBorderRadius =
+            stageRect && stageRect.width > 0
+              ? (get().videoCard.borderRadius * canvasOut.width) /
+                stageRect.width
+              : get().videoCard.borderRadius;
+
+          const screenWrapEl = document.querySelector(
+            '.screen-wrap'
+          ) as HTMLElement | null;
+          let screenPosition: {
+            x: number;
+            y: number;
+            width: number;
+            height: number;
+          } | null = null;
+          if (stageEl && screenWrapEl && stageRect && stageRect.width > 0) {
+            const sRect = screenWrapEl.getBoundingClientRect();
+            screenPosition = {
+              x: (sRect.left - stageRect.left) / stageRect.width,
+              y: (sRect.top - stageRect.top) / stageRect.height,
+              width: sRect.width / stageRect.width,
+              height: sRect.height / stageRect.height,
+            };
+            console.log('[store] screen position from UI:', screenPosition, {
+              sRect: {
+                x: sRect.left - stageRect.left,
+                y: sRect.top - stageRect.top,
+                w: sRect.width,
+                h: sRect.height,
+              },
+            });
+          }
+
+          const cardShadow = VIDEO_SHADOWS_CSS[get().videoCard.shadow];
+          const scaleForShadow =
+            stageRect && stageRect.width > 0
+              ? canvasOut.width / stageRect.width
+              : 1;
+          const screenShadow = cardShadow
+            ? {
+                blur: cardShadow.blur * scaleForShadow,
+                offsetY: cardShadow.offsetY * scaleForShadow,
+                color: cardShadow.color,
+              }
+            : null;
+
+          let screenBgPattern: {
+            kind: BackgroundPattern;
+            color: string;
+            scale: number;
+          } | null = null;
+          if (recordWithBackground && bgPatternKind) {
+            const hex = bgState.patternColor.replace('#', '');
+            const r = parseInt(hex.slice(0, 2), 16);
+            const g = parseInt(hex.slice(2, 4), 16);
+            const b = parseInt(hex.slice(4, 6), 16);
+            const stageW = stageRect?.width ?? canvasOut.width;
+            screenBgPattern = {
+              kind: bgPatternKind,
+              color: `rgba(${r}, ${g}, ${b}, ${bgState.patternOpacity})`,
+              scale: stageW > 0 ? canvasOut.width / stageW : 1,
+            };
+          }
+
           console.log(
-            '[store] sending bg color to recorder:',
-            bgColor,
+            '[store] sending bg to recorder:',
+            backgroundColor,
+            'pattern:',
+            bgPatternKind,
             'shape:',
             shape
           );
@@ -598,8 +838,12 @@ export const useStudio = create<StudioState>()(
               webcamVideoEl: webcamEl,
               webcamShape: shape,
               webcamPosition,
-              backgroundColor: bgColor,
+              screenPosition,
+              backgroundColor,
+              bgPattern: screenBgPattern,
               canvasRatio: ratio,
+              screenBorderRadius,
+              screenShadow,
             });
             const timer = setInterval(() => {
               const s = get().recordingStartTime;
@@ -970,7 +1214,12 @@ export const useStudio = create<StudioState>()(
         set((st) => ({ videoCard: { ...st.videoCard, ...patch } })),
       resetVideoCard: () => set({ videoCard: { ...DEFAULT_VIDEO_CARD } }),
       resetBackgroundAll: () => {
-        set({ stageColor: '#FFFFFF' });
+        set({
+          stageColor: '#FFFFFF',
+          customWebcamPos: null,
+          videoCard: { ...DEFAULT_VIDEO_CARD },
+          screenTransform: { scale: 1, x: 0, y: 0, fit: 'contain' },
+        });
         get().setBackground({
           type: 'default',
           value: '#FAFAFA',
