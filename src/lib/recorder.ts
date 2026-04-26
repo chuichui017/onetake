@@ -1,5 +1,8 @@
 import {
+  buildPatternCanvas,
   createCompositor,
+  parseCssBackground,
+  type BgPattern,
   type VideoRect,
   type WebcamRect,
 } from './compositor';
@@ -9,6 +12,7 @@ export interface RecordingOptions {
   height: number;
   recordWithBackground: boolean;
   backgroundColor: string;
+  bgPattern: BgPattern | null;
   uploadedVideoEl: HTMLVideoElement | null;
   webcamVideoEl: HTMLVideoElement | null;
   getVideoRect: () => VideoRect | null;
@@ -48,6 +52,7 @@ export async function startCompositeRecording(
     uploadedVideoEl: options.uploadedVideoEl,
     webcamVideoEl: options.webcamVideoEl,
     backgroundColor: options.backgroundColor,
+    bgPattern: options.bgPattern,
     recordWithBackground: options.recordWithBackground,
     getVideoRect: options.getVideoRect,
     getWebcamRect: options.getWebcamRect,
@@ -130,13 +135,22 @@ export async function startCompositeRecording(
 }
 
 function getSupportedMimeType(preferAlpha: boolean): string {
+  // 优先 MP4（H.264 + AAC），不支持则回退到 webm。
+  // alpha 通道仅 webm/vp9 支持，但当前 Canvas 默认非透明合成，
+  // 即使 preferAlpha 也优先 MP4 以满足下载格式需求。
   const candidates = preferAlpha
     ? [
+        'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+        'video/mp4;codecs=avc1,mp4a',
+        'video/mp4',
         'video/webm;codecs=vp9,opus',
         'video/webm;codecs=vp8,opus',
         'video/webm',
       ]
     : [
+        'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+        'video/mp4;codecs=avc1,mp4a',
+        'video/mp4',
         'video/webm;codecs=vp8,opus',
         'video/webm;codecs=vp9,opus',
         'video/webm',
@@ -145,6 +159,10 @@ function getSupportedMimeType(preferAlpha: boolean): string {
     if (MediaRecorder.isTypeSupported(t)) return t;
   }
   return 'video/webm';
+}
+
+export function extensionFromMime(mime: string): 'mp4' | 'webm' {
+  return mime.startsWith('video/mp4') ? 'mp4' : 'webm';
 }
 
 export function downloadBlob(blob: Blob, filename: string) {
@@ -158,14 +176,14 @@ export function downloadBlob(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function generateFilename(): string {
+export function generateFilename(ext: 'mp4' | 'webm' = 'mp4'): string {
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
   return `OneTake-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(
     now.getDate()
   )}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(
     now.getSeconds()
-  )}.webm`;
+  )}.${ext}`;
 }
 
 export type ScreenShareWebcamShape =
@@ -188,8 +206,17 @@ export interface ScreenShareRecordingOptions {
     width: number;
     height: number;
   } | null;
+  screenPosition: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null;
   backgroundColor: string;
+  bgPattern?: BgPattern | null;
   canvasRatio: '9:16' | '16:9' | '16:10' | '3:4' | '1:1';
+  screenBorderRadius?: number;
+  screenShadow?: { blur: number; offsetY: number; color: string } | null;
 }
 
 export async function startScreenShareRecording(
@@ -218,6 +245,10 @@ export async function startScreenShareRecording(
   let running = true;
   let rafId: number | null = null;
 
+  const bgPatternCanvas = options.bgPattern
+    ? buildPatternCanvas(options.bgPattern, width, height)
+    : null;
+
   const roundedPath = (
     c: CanvasRenderingContext2D,
     x: number,
@@ -241,7 +272,9 @@ export async function startScreenShareRecording(
     x: number,
     y: number,
     w: number,
-    h: number
+    h: number,
+    radius: number,
+    shadow: { blur: number; offsetY: number; color: string } | null
   ) => {
     if (
       video.readyState < 2 ||
@@ -251,6 +284,28 @@ export async function startScreenShareRecording(
       h <= 0
     ) {
       return;
+    }
+    if (shadow) {
+      ctx.save();
+      ctx.fillStyle = '#000';
+      ctx.shadowColor = shadow.color;
+      ctx.shadowBlur = shadow.blur;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = shadow.offsetY;
+      if (radius > 0) {
+        roundedPath(ctx, x, y, w, h, radius);
+      } else {
+        ctx.beginPath();
+        ctx.rect(x, y, w, h);
+      }
+      ctx.fill();
+      ctx.restore();
+    }
+    const clipped = radius > 0;
+    if (clipped) {
+      ctx.save();
+      roundedPath(ctx, x, y, w, h, radius);
+      ctx.clip();
     }
     const videoAspect = video.videoWidth / video.videoHeight;
     const areaAspect = w / h;
@@ -270,6 +325,9 @@ export async function startScreenShareRecording(
       ctx.drawImage(video, dx, dy, dw, dh);
     } catch {
       // frame not ready
+    }
+    if (clipped) {
+      ctx.restore();
     }
   };
 
@@ -344,68 +402,64 @@ export async function startScreenShareRecording(
       );
     }
 
-    ctx.fillStyle = options.backgroundColor;
+    ctx.fillStyle = parseCssBackground(
+      options.backgroundColor,
+      ctx,
+      width,
+      height
+    );
     ctx.fillRect(0, 0, width, height);
+    if (bgPatternCanvas) {
+      ctx.drawImage(bgPatternCanvas, 0, 0);
+    }
 
     const shape = options.webcamShape;
     const wcEl = options.webcamVideoEl;
     const pos = options.webcamPosition;
+    const screenPos = options.screenPosition;
+    const isSplit = shape === 'split-top' || shape === 'split-bottom';
+    const screenRadius = isSplit ? 0 : options.screenBorderRadius ?? 0;
+    const screenShadow = isSplit ? null : options.screenShadow ?? null;
 
-    if (shape === 'split-top' || shape === 'split-bottom') {
-      const isTop = shape === 'split-top';
-      const camAreaHeight = pos
-        ? height * pos.height
-        : height * 0.42;
-      const camAreaY = isTop ? 0 : height - camAreaHeight;
-      const screenAreaHeight = height - camAreaHeight;
-      const screenAreaY = isTop ? camAreaHeight : 0;
-
-      drawScreenContain(screenVideoEl, 0, screenAreaY, width, screenAreaHeight);
-
-      if (wcEl) {
-        drawWebcamCover(wcEl, 0, camAreaY, width, camAreaHeight, 'square');
-      }
+    if (shape !== 'full' && screenPos) {
+      const sx = width * screenPos.x;
+      const sy = height * screenPos.y;
+      const sw = width * screenPos.width;
+      const sh = height * screenPos.height;
+      drawScreenContain(
+        screenVideoEl,
+        sx,
+        sy,
+        sw,
+        sh,
+        screenRadius,
+        screenShadow
+      );
 
       if (!layoutLogged) {
         layoutLogged = true;
 
-        console.log('[screen-recorder] split layout:', {
+        console.log('[screen-recorder] screen layout:', {
           shape,
-          camAreaY,
-          camAreaHeight,
-          screenAreaY,
-          screenAreaHeight,
+          sx,
+          sy,
+          sw,
+          sh,
+          radius: screenRadius,
+          hasShadow: !!screenShadow,
         });
       }
-    } else if (shape === 'full') {
-      if (wcEl) {
-        drawWebcamCover(wcEl, 0, 0, width, height, 'square');
-      }
-    } else if (shape === 'hidden') {
-      drawScreenContain(screenVideoEl, 0, 0, width, height);
-    } else {
-      drawScreenContain(screenVideoEl, 0, 0, width, height);
+    }
 
-      if (wcEl && pos) {
-        const camX = width * pos.x;
-        const camY = height * pos.y;
-        const camW = width * pos.width;
-        const camH = height * pos.height;
-
-        if (!layoutLogged) {
-          layoutLogged = true;
-
-          console.log('[screen-recorder] overlay layout:', {
-            shape,
-            camX,
-            camY,
-            camW,
-            camH,
-          });
-        }
-
-        drawWebcamCover(wcEl, camX, camY, camW, camH, shape);
-      }
+    if (shape === 'full' && wcEl) {
+      drawWebcamCover(wcEl, 0, 0, width, height, 'square');
+    } else if (shape !== 'hidden' && wcEl && pos) {
+      const camX = width * pos.x;
+      const camY = height * pos.y;
+      const camW = width * pos.width;
+      const camH = height * pos.height;
+      const camShape = isSplit ? 'square' : shape;
+      drawWebcamCover(wcEl, camX, camY, camW, camH, camShape);
     }
 
     rafId = requestAnimationFrame(drawFrame);
