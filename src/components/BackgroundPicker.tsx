@@ -132,8 +132,6 @@ export function BackgroundPicker() {
   const customGradient = useStudio((s) => s.customGradient);
   const setBackground = useStudio((s) => s.setBackground);
   const setCustomGradient = useStudio((s) => s.setCustomGradient);
-  const recordWithBackground = useStudio((s) => s.recordWithBackground);
-  const setRecordWithBackground = useStudio((s) => s.setRecordWithBackground);
 
   useEffect(() => {
     if (bg.type === 'blur') setBackground({ type: 'default' });
@@ -149,26 +147,12 @@ export function BackgroundPicker() {
     }
   };
 
-  const tab = bg.type;
+  // 默认 tab = 'solid'：当 bg.type 是 'default' 或 'blur' 时仍把"纯色"标为激活
+  const tab: Exclude<BackgroundType, 'default' | 'blur'> =
+    bg.type === 'default' || bg.type === 'blur' ? 'solid' : bg.type;
 
   return (
     <div className="bg-picker">
-      <div className="record-bg-toggle">
-        <div className="toggle-label">
-          <div className="toggle-title">录制时包含背景</div>
-          <div className="toggle-hint">关闭后导出视频背景为纯白</div>
-        </div>
-        <button
-          type="button"
-          className={`toggle-switch ${recordWithBackground ? 'on' : 'off'}`}
-          onClick={() => setRecordWithBackground(!recordWithBackground)}
-          aria-label="录制时是否包含背景"
-          aria-pressed={recordWithBackground}
-        >
-          <span className="toggle-thumb" />
-        </button>
-      </div>
-
       <div className="bg-tabs">
         {TABS.map((t) => (
           <button
@@ -371,7 +355,7 @@ export function BackgroundPicker() {
 
           <div className="bg-row">
             <label className="bg-row-label">底色</label>
-            <div className="swatch-row">
+            <div className="swatch-row swatch-row-base">
               {PATTERN_BASES.map((c) => (
                 <button
                   key={c}

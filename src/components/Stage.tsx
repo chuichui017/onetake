@@ -17,7 +17,6 @@ import { getSmartShadow } from '@/lib/utils';
 import { WebcamLayer } from './WebcamLayer';
 import { ScreenStage } from './ScreenStage';
 import { VideoStage } from './VideoStage';
-import { ZoomControl } from './ZoomControl';
 import { RecordFrame } from './RecordFrame';
 import { CanvasHint } from './CanvasHint';
 
@@ -255,7 +254,6 @@ export function Stage({ onRequestScreen }: StageProps) {
               wrapW={outer.w}
               wrapH={outer.h}
             />
-            <ZoomControl />
           </>
         )}
       </div>
