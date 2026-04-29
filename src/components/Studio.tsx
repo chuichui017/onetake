@@ -20,6 +20,24 @@ export function Studio() {
   const panelHidden = useStudio((s) => s.panelHidden);
 
   useEffect(() => {
+    // Suppress CSS transitions during the SSR-default → persisted-state
+    // settle. Two RAFs so React commits the rehydrated state first, then
+    // we let transitions kick in for genuine user interactions.
+    document.body.classList.add('hydrating');
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        document.body.classList.remove('hydrating');
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+      document.body.classList.remove('hydrating');
+    };
+  }, []);
+
+  useEffect(() => {
     // Block the browser's native page zoom: trackpad pinch arrives as
     // wheel + ctrlKey, and Safari also fires gesture* events. We handle
     // canvas zoom ourselves; everything else on the page should stay at

@@ -1,7 +1,14 @@
 'use client';
 
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type RefObject,
+} from 'react';
 import { useStudio, type VideoCardShadow } from '@/lib/store';
+import { setRecordingRef } from '@/lib/recordingRefs';
 
 interface VideoStageProps {
   videoRef: RefObject<HTMLVideoElement | null>;
@@ -17,12 +24,14 @@ const SHADOW_MAP: Record<VideoCardShadow, string> = {
 export function VideoStage({ videoRef }: VideoStageProps) {
   const videoUrl = useStudio((s) => s.videoUrl);
   const videoCard = useStudio((s) => s.videoCard);
+  const webcamShape = useStudio((s) => s.webcamShape);
   const videoMuted = useStudio((s) => s.videoMuted);
   const videoVolume = useStudio((s) => s.videoVolume);
   const videoPlaybackRate = useStudio((s) => s.videoPlaybackRate);
   const setVideoVolume = useStudio((s) => s.setVideoVolume);
   const setVideoPlaying = useStudio((s) => s.setVideoPlaying);
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const cardRef = useRef<HTMLDivElement | null>(null);
   const [aspectRatio, setAspectRatio] = useState(16 / 9);
   const [stageSize, setStageSize] = useState({ w: 0, h: 0 });
   const [error, setError] = useState(false);
@@ -47,40 +56,79 @@ export function VideoStage({ videoRef }: VideoStageProps) {
     return () => ro.disconnect();
   }, []);
 
+  useEffect(() => {
+    if (!videoUrl) return;
+    // cardRef / videoRef live on a conditionally-rendered .video-card. They
+    // attach only after ResizeObserver delivers a non-zero stage size, so
+    // re-run when stageSize updates to capture the now-mounted refs.
+    if (stageSize.w === 0 || stageSize.h === 0) return;
+    setRecordingRef('videoCard', cardRef.current);
+    setRecordingRef('uploadedVideo', videoRef.current);
+    return () => {
+      setRecordingRef('videoCard', null);
+      setRecordingRef('uploadedVideo', null);
+    };
+  }, [videoUrl, videoRef, stageSize.w, stageSize.h]);
+
   if (!videoUrl) return null;
 
-  // contain-fit base size to stage, then × videoCard.scale via CSS transform
+  // 0.58/0.42 mirrors WebcamLayer split rects so video fills the half opposite the webcam
+  const isSplitBottom = webcamShape === 'split-bottom';
+  const isSplitTop = webcamShape === 'split-top';
+  const isSplit = isSplitBottom || isSplitTop;
+
   let cardW = 0;
   let cardH = 0;
+  let splitLeft = 0;
+  let splitTop = 0;
   if (stageSize.w > 0 && stageSize.h > 0 && aspectRatio > 0) {
-    const stageAspect = stageSize.w / stageSize.h;
-    if (aspectRatio > stageAspect) {
-      cardW = stageSize.w;
-      cardH = stageSize.w / aspectRatio;
+    const availW = stageSize.w;
+    const availH = isSplit ? stageSize.h * 0.58 : stageSize.h;
+    const availAspect = availW / availH;
+    if (aspectRatio > availAspect) {
+      cardW = availW;
+      cardH = availW / aspectRatio;
     } else {
-      cardH = stageSize.h;
-      cardW = stageSize.h * aspectRatio;
+      cardH = availH;
+      cardW = availH * aspectRatio;
+    }
+    if (isSplit) {
+      splitLeft = (stageSize.w - cardW) / 2;
+      splitTop =
+        (isSplitBottom ? 0 : stageSize.h * 0.42) + (availH - cardH) / 2;
     }
   }
+
+  const positionStyle: CSSProperties = isSplit
+    ? {
+        left: `${splitLeft}px`,
+        top: `${splitTop}px`,
+        transform: `scale(${videoCard.scale})`,
+        transformOrigin: 'center center',
+      }
+    : {
+        left: `${videoCard.x}%`,
+        top: `${videoCard.y}%`,
+        transform: `translate(-50%, -50%) scale(${videoCard.scale})`,
+        transformOrigin: 'center center',
+      };
 
   return (
     <div ref={wrapRef} style={{ position: 'absolute', inset: 0 }}>
       {cardW > 0 && (
         <div
+          ref={cardRef}
           className="video-card"
           style={{
             position: 'absolute',
-            left: `${videoCard.x}%`,
-            top: `${videoCard.y}%`,
             width: `${cardW}px`,
             height: `${cardH}px`,
-            transform: `translate(-50%, -50%) scale(${videoCard.scale})`,
-            transformOrigin: 'center center',
             borderRadius: `${videoCard.borderRadius}px`,
             boxShadow: SHADOW_MAP[videoCard.shadow],
             overflow: 'hidden',
             cursor: 'move',
             zIndex: 10,
+            ...positionStyle,
           }}
         >
           {error ? (

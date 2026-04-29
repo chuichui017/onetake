@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStudio, type VideoCardShadow } from '@/lib/store';
 import { useScreenShare } from '@/hooks/useScreenShare';
+import { setRecordingRef } from '@/lib/recordingRefs';
 
 const SHADOW_MAP: Record<VideoCardShadow, string> = {
   none: 'none',
@@ -39,6 +40,12 @@ export function ScreenStage({
       videoRef.current.srcObject = stream;
     }
   }, [stream, videoRef]);
+
+  useEffect(() => {
+    if (!stream) return;
+    setRecordingRef('screenWrap', wrapRef.current);
+    return () => setRecordingRef('screenWrap', null);
+  }, [stream]);
 
   useEffect(() => {
     if (stream) {

@@ -3,6 +3,7 @@
 import { type CSSProperties } from 'react';
 import { useStudio } from '@/lib/store';
 import { useScreenShare } from '@/hooks/useScreenShare';
+import { isStageDark } from '@/lib/utils';
 
 interface CanvasHintProps {
   onRequestScreen: () => void | Promise<void>;
@@ -101,11 +102,15 @@ export function CanvasHint({
   const videoFile = useStudio((s) => s.videoFile);
   const bgSource = useStudio((s) => s.bgSource);
   const hintDismissed = useStudio((s) => s.hintDismissed);
+  const background = useStudio((s) => s.background);
+  const stageColor = useStudio((s) => s.stageColor);
   const { stream: screenStream } = useScreenShare();
 
   if (videoFile) return null;
   if (bgSource === 'screen' && screenStream) return null;
   if (hintDismissed) return null;
+
+  const dark = isStageDark(background, stageColor);
 
   const triggerScreenShare = async () => {
     try {
@@ -128,7 +133,7 @@ export function CanvasHint({
   };
 
   return (
-    <div className="canvas-hint" style={overlayStyle}>
+    <div className={`canvas-hint${dark ? ' dark' : ''}`} style={overlayStyle}>
       {scene === 1 && <LectureHint />}
       {scene === 2 && <SplitScreenHint onShare={triggerScreenShare} />}
       {scene === 3 && <KoubaoHint />}

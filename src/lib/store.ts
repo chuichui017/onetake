@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { scenes, type SceneId } from './scenes';
+import { getTldrawEditor } from './tldrawEditor';
 import {
   type Layer,
   type LayerSource,
@@ -13,6 +14,8 @@ import {
   stopCamera as stopCameraStream,
   getCameraStream,
 } from '@/hooks/useCamera';
+import { hexToRgba } from './utils';
+import { getRecordingRefs } from './recordingRefs';
 
 export type WebcamShape =
   | 'circle'
@@ -120,7 +123,6 @@ interface PersistedTele {
   panelHidden: boolean;
   recordWithBackground: boolean;
   videoCard: VideoCard;
-  hintDismissed: boolean;
 }
 
 export type VideoCardShadow = 'none' | 'small' | 'medium' | 'large';
@@ -331,7 +333,10 @@ const persisted = (s: StudioState): Partial<StudioState> => ({
   stageColor: s.stageColor,
   videoCard: s.videoCard,
   screenTransform: s.screenTransform,
-  hintDismissed: s.hintDismissed,
+  // hintDismissed intentionally NOT persisted — every refresh should
+  // re-surface the canvas hint as a fresh-session affordance. It still
+  // dismisses normally within the session via dismissHint / picking a
+  // webcam shape / starting the camera.
 });
 
 const DEFAULT_PANEL_COLLAPSED: PanelCollapsedMap = {
@@ -532,6 +537,7 @@ export const useStudio = create<StudioState>()(
         set({ webcamShape: s });
         get().patchLayerByType('persona', { style: { shape: s } });
         if (s !== 'hidden') {
+          set({ hintDismissed: true });
           void startCamera()
             .then(() => {
               if (get().cameraState === 'off') {
@@ -698,21 +704,12 @@ export const useStudio = create<StudioState>()(
           backgroundColor = get().stageColor;
         }
 
-        const uploadedVideoEl = document.querySelector(
-          'video.uploaded-video'
-        ) as HTMLVideoElement | null;
-        const videoCardEl = document.querySelector(
-          '.video-card'
-        ) as HTMLElement | null;
-        const webcamEl = document.querySelector(
-          'video.webcam-feed'
-        ) as HTMLVideoElement | null;
-        const webcamLayerEl = document.querySelector(
-          '.webcam-layer'
-        ) as HTMLElement | null;
-        const stageEl = document.querySelector(
-          '.stage-shell'
-        ) as HTMLElement | null;
+        const refs = getRecordingRefs();
+        const uploadedVideoEl = refs.uploadedVideo;
+        const videoCardEl = refs.videoCard;
+        const webcamEl = refs.webcamVideo;
+        const webcamLayerEl = refs.webcamLayer;
+        const stageEl = refs.stageShell;
 
         const {
           getResolutionForRatio,
@@ -765,9 +762,7 @@ export const useStudio = create<StudioState>()(
                 stageRect.width
               : get().videoCard.borderRadius;
 
-          const screenWrapEl = document.querySelector(
-            '.screen-wrap'
-          ) as HTMLElement | null;
+          const screenWrapEl = refs.screenWrap;
           let screenPosition: {
             x: number;
             y: number;
@@ -811,14 +806,10 @@ export const useStudio = create<StudioState>()(
             scale: number;
           } | null = null;
           if (recordWithBackground && bgPatternKind) {
-            const hex = bgState.patternColor.replace('#', '');
-            const r = parseInt(hex.slice(0, 2), 16);
-            const g = parseInt(hex.slice(2, 4), 16);
-            const b = parseInt(hex.slice(4, 6), 16);
             const stageW = stageRect?.width ?? canvasOut.width;
             screenBgPattern = {
               kind: bgPatternKind,
-              color: `rgba(${r}, ${g}, ${b}, ${bgState.patternOpacity})`,
+              color: hexToRgba(bgState.patternColor, bgState.patternOpacity),
               scale: stageW > 0 ? canvasOut.width / stageW : 1,
             };
           }
@@ -844,6 +835,7 @@ export const useStudio = create<StudioState>()(
               canvasRatio: ratio,
               screenBorderRadius,
               screenShadow,
+              tldrawEditor: getTldrawEditor(),
             });
             const timer = setInterval(() => {
               const s = get().recordingStartTime;
@@ -877,7 +869,13 @@ export const useStudio = create<StudioState>()(
         };
         let canvasOutput: { width: number; height: number };
 
-        if (recordWithBackground) {
+        // 纯板模式（bgSource='board'）没有 video 卡片，紧贴裁切会塌缩到摄像头矩形，
+        // 且 MP4/H.264 不支持 alpha——强制按 stage 整体出帧并填背景。
+        const isBoardOnly = get().bgSource === 'board';
+        const useFullStage = recordWithBackground || isBoardOnly;
+        let effectiveRecordWithBackground = recordWithBackground;
+
+        if (useFullStage) {
           const stageRect = stageEl?.getBoundingClientRect() ?? null;
           if (!stageRect || stageRect.width === 0) {
             get().showToast('画板尺寸未就绪');
@@ -890,6 +888,7 @@ export const useStudio = create<StudioState>()(
             height: stageRect.height,
           };
           canvasOutput = getResolutionForRatio(ratio);
+          if (isBoardOnly) effectiveRecordWithBackground = true;
         } else {
           const rects: DOMRect[] = [];
           if (videoCardEl) rects.push(videoCardEl.getBoundingClientRect());
@@ -926,13 +925,9 @@ export const useStudio = create<StudioState>()(
           scale: number;
         } | null = null;
         if (bgPatternKind) {
-          const hex = bgState.patternColor.replace('#', '');
-          const r = parseInt(hex.slice(0, 2), 16);
-          const g = parseInt(hex.slice(2, 4), 16);
-          const b = parseInt(hex.slice(4, 6), 16);
           bgPattern = {
             kind: bgPatternKind,
-            color: `rgba(${r}, ${g}, ${b}, ${bgState.patternOpacity})`,
+            color: hexToRgba(bgState.patternColor, bgState.patternOpacity),
             scale: scaleX,
           };
         }
@@ -1029,11 +1024,12 @@ export const useStudio = create<StudioState>()(
           const { stop } = await startCompositeRecording({
             width: canvasOutput.width,
             height: canvasOutput.height,
-            recordWithBackground,
+            recordWithBackground: effectiveRecordWithBackground,
             backgroundColor,
             bgPattern,
             uploadedVideoEl,
             webcamVideoEl: webcamEl,
+            tldrawEditor: getTldrawEditor(),
             getVideoRect,
             getWebcamRect,
           });
@@ -1097,9 +1093,10 @@ export const useStudio = create<StudioState>()(
       startCameraPreview: async () => {
         try {
           await startCamera();
-          if (get().cameraState === 'off') {
-            set({ cameraState: 'preview' });
-          }
+          set((st) => ({
+            cameraState: st.cameraState === 'off' ? 'preview' : st.cameraState,
+            hintDismissed: true,
+          }));
         } catch {
           get().showToast('无法访问摄像头');
         }
@@ -1254,6 +1251,14 @@ export const useStudio = create<StudioState>()(
       name: 'onetake-studio',
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => persisted(s as StudioState),
+      merge: (persistedState, currentState) => {
+        // Strip fields we no longer persist but which may exist in older
+        // saved blobs (zustand's default merge would otherwise re-import
+        // them and override the in-memory defaults).
+        const incoming = { ...(persistedState as Partial<StudioState>) };
+        delete (incoming as { hintDismissed?: boolean }).hintDismissed;
+        return { ...currentState, ...incoming };
+      },
     }
   )
 );

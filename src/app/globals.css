@@ -92,6 +92,17 @@ body {
   height: 100%;
 }
 
+/* Suppress CSS transitions during initial hydration. Without this, every
+   refresh visibly animates from SSR-default state to persisted state
+   (panel sliding, background fading, etc.). Studio.tsx removes the class
+   after two RAFs so post-hydration interactions still animate normally. */
+body.hydrating *,
+body.hydrating *::before,
+body.hydrating *::after {
+  transition: none !important;
+  animation-duration: 0s !important;
+}
+
 body {
   background: var(--bg);
   color: var(--text-primary);
@@ -2210,16 +2221,46 @@ body.theme-indigo .header-video-progress {
   justify-content: center;
   padding: 40px;
   border-radius: 20px;
-  animation: hint-in 0.3s ease;
 }
 
 .canvas-hint > * {
   pointer-events: auto;
 }
 
-@keyframes hint-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+/* Dark-stage variant: when the canvas background is dark, flip the hint
+   text/icons to light so they stay legible. .dark is applied in
+   CanvasHint.tsx based on isStageDark() against background + stageColor. */
+.canvas-hint.dark .stage-hint-icon,
+.canvas-hint.dark .stage-hint-icon svg {
+  color: rgba(255, 255, 255, 0.7);
+}
+.canvas-hint.dark .stage-hint-title {
+  color: #FFFFFF;
+}
+.canvas-hint.dark .stage-hint-desc {
+  color: rgba(255, 255, 255, 0.75);
+}
+.canvas-hint.dark .stage-hint-sub {
+  color: rgba(255, 255, 255, 0.55);
+}
+.canvas-hint.dark .stage-hint-shortcuts {
+  color: rgba(255, 255, 255, 0.7);
+}
+.canvas-hint.dark .stage-hint-shortcuts kbd {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.canvas-hint.dark .koubao-usecases {
+  color: rgba(255, 255, 255, 0.7);
+}
+/* Primary CTA inverts (white pill on dark stage) so it stays visible. */
+.canvas-hint.dark .stage-hint-btn.primary {
+  background: #FFFFFF;
+  color: #18181B;
+}
+.canvas-hint.dark .stage-hint-btn.primary:hover {
+  background: #F4F4F5;
 }
 
 .stage-hint-icon {
@@ -2537,7 +2578,7 @@ body.theme-indigo .header-video-progress {
   padding: 14px 8px;
   min-height: 64px;
   background: var(--surface-hover);
-  border: 2px solid transparent;
+  border: 2px solid var(--border-strong);
   border-radius: 14px;
   cursor: pointer;
   font-family: inherit;
@@ -2552,6 +2593,7 @@ body.theme-indigo .header-video-progress {
 
 .card-btn:hover {
   background: var(--border);
+  border-color: var(--text-secondary);
   color: var(--text-primary);
 }
 

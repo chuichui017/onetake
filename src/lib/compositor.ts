@@ -2,6 +2,12 @@
 // 创建离屏 Canvas，按 30fps 循环把所有元素（背景、视频、摄像头）画到 Canvas 上。
 // 然后由 recorder.ts 用 canvas.captureStream() 录这个 Canvas。
 
+import type { Editor } from '@tldraw/tldraw';
+import {
+  createTldrawSnapshotter,
+  type TldrawSnapshotter,
+} from './tldrawSnapshot';
+
 function splitGradientArgs(s: string): string[] {
   const result: string[] = [];
   let depth = 0;
@@ -252,6 +258,7 @@ export interface CompositorConfig {
   backgroundColor: string;
   bgPattern: BgPattern | null;
   recordWithBackground: boolean;
+  tldrawEditor: Editor | null;
   getVideoRect: () => VideoRect | null;
   getWebcamRect: () => WebcamRect | null;
 }
@@ -274,6 +281,10 @@ export function createCompositor(config: CompositorConfig): Compositor {
 
   const patternCanvas = config.bgPattern
     ? buildPatternCanvas(config.bgPattern, config.width, config.height)
+    : null;
+
+  const tldrawSnap: TldrawSnapshotter | null = config.tldrawEditor
+    ? createTldrawSnapshotter(config.tldrawEditor)
     : null;
 
   const roundedRectPath = (
@@ -310,6 +321,17 @@ export function createCompositor(config: CompositorConfig): Compositor {
       }
     } else {
       ctx.clearRect(0, 0, config.width, config.height);
+    }
+
+    if (tldrawSnap) {
+      const tlImg = tldrawSnap.getImage();
+      if (tlImg) {
+        try {
+          ctx.drawImage(tlImg, 0, 0, config.width, config.height);
+        } catch {
+          // image decode pending — skip frame
+        }
+      }
     }
 
     if (config.uploadedVideoEl && config.uploadedVideoEl.readyState >= 2) {
@@ -404,6 +426,7 @@ export function createCompositor(config: CompositorConfig): Compositor {
       running = false;
       if (rafId !== null) cancelAnimationFrame(rafId);
       rafId = null;
+      tldrawSnap?.dispose();
     },
   };
 }

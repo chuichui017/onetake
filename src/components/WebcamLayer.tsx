@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStudio, type WebcamShape, type Pos } from '@/lib/store';
 import { useCamera } from '@/hooks/useCamera';
+import { setRecordingRef } from '@/lib/recordingRefs';
 
 interface Rect {
   left: number;
@@ -133,6 +134,7 @@ export function WebcamLayer({
   const size = useStudio((s) => s.webcamSize);
   const customPos = useStudio((s) => s.customWebcamPos);
   const border = useStudio((s) => s.border);
+  const hintDismissed = useStudio((s) => s.hintDismissed);
   const setCustomWebcamPos = useStudio((s) => s.setCustomWebcamPos);
   const startCameraPreview = useStudio((s) => s.startCameraPreview);
   const stopCamera = useStudio((s) => s.stopCamera);
@@ -156,19 +158,32 @@ export function WebcamLayer({
 
   const rect = useMemo(() => {
     if (base.allowDrag && customPos) {
+      // Clamp to current stage bounds. Without this, a customPos saved when the
+      // stage was bigger (different ratio / window size) renders off-screen.
+      const maxLeft = Math.max(0, stageW - base.width);
+      const maxTop = Math.max(0, stageH - base.height);
       return {
         ...base,
-        left: customPos.left,
-        top: customPos.top,
+        left: Math.max(0, Math.min(maxLeft, customPos.left)),
+        top: Math.max(0, Math.min(maxTop, customPos.top)),
       };
     }
     return base;
-  }, [base, customPos]);
+  }, [base, customPos, stageW, stageH]);
 
   useEffect(() => {
     if (videoRef.current && stream) {
       videoRef.current.srcObject = stream;
     }
+  }, [stream, videoRef]);
+
+  useEffect(() => {
+    setRecordingRef('webcamLayer', layerRef.current);
+    setRecordingRef('webcamVideo', videoRef.current);
+    return () => {
+      setRecordingRef('webcamLayer', null);
+      setRecordingRef('webcamVideo', null);
+    };
   }, [stream, videoRef]);
 
   useEffect(() => {
@@ -234,6 +249,11 @@ export function WebcamLayer({
   };
 
   const ready = stream !== null;
+  // CanvasHint owns the empty-state UI at stage center until dismissed. Only
+  // suppress when this layer's fallback would also land at center (full-stage
+  // shapes); corner shapes don't overlap and shouldn't flash on hydration.
+  const overlapsCenterHint = !base.allowDrag && shape !== 'hidden';
+  if (!ready && !hintDismissed && overlapsCenterHint) return null;
   const cls =
     'webcam-layer' +
     (drag ? ' dragging' : '') +

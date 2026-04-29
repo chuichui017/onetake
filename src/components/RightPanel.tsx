@@ -33,7 +33,13 @@ const SHAPES: { v: WebcamShape; label: string; icon: React.ReactNode }[] = [
         stroke="currentColor"
         strokeWidth="1.8"
       >
-        <circle cx="12" cy="12" r="7" />
+        <circle
+          cx="12"
+          cy="12"
+          r="7"
+          fill="currentColor"
+          fillOpacity="0.3"
+        />
       </svg>
     ),
   },
@@ -49,7 +55,15 @@ const SHAPES: { v: WebcamShape; label: string; icon: React.ReactNode }[] = [
         stroke="currentColor"
         strokeWidth="1.8"
       >
-        <rect x="3" y="9" width="18" height="6" rx="2" />
+        <rect
+          x="3"
+          y="9"
+          width="18"
+          height="6"
+          rx="2"
+          fill="currentColor"
+          fillOpacity="0.3"
+        />
       </svg>
     ),
   },
@@ -65,7 +79,15 @@ const SHAPES: { v: WebcamShape; label: string; icon: React.ReactNode }[] = [
         stroke="currentColor"
         strokeWidth="1.8"
       >
-        <rect x="9" y="3" width="6" height="18" rx="2" />
+        <rect
+          x="9"
+          y="3"
+          width="6"
+          height="18"
+          rx="2"
+          fill="currentColor"
+          fillOpacity="0.3"
+        />
       </svg>
     ),
   },
@@ -81,7 +103,15 @@ const SHAPES: { v: WebcamShape; label: string; icon: React.ReactNode }[] = [
         stroke="currentColor"
         strokeWidth="1.8"
       >
-        <rect x="5" y="5" width="14" height="14" rx="2" />
+        <rect
+          x="5"
+          y="5"
+          width="14"
+          height="14"
+          rx="2"
+          fill="currentColor"
+          fillOpacity="0.3"
+        />
       </svg>
     ),
   },

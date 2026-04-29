@@ -13,7 +13,8 @@ import {
   type BackgroundState,
   type CanvasSize,
 } from '@/lib/store';
-import { getSmartShadow } from '@/lib/utils';
+import { getSmartShadow, hexToRgba } from '@/lib/utils';
+import { setRecordingRef } from '@/lib/recordingRefs';
 import { WebcamLayer } from './WebcamLayer';
 import { ScreenStage } from './ScreenStage';
 import { VideoStage } from './VideoStage';
@@ -29,15 +30,6 @@ const ASPECT: Record<CanvasSize, { w: number; h: number }> = {
   '3:4': { w: 3, h: 4 },
   '1:1': { w: 1, h: 1 },
 };
-
-function hexToRgba(hex: string, alpha: number): string {
-  const m = hex.replace('#', '');
-  if (m.length !== 6) return hex;
-  const r = parseInt(m.slice(0, 2), 16);
-  const g = parseInt(m.slice(2, 4), 16);
-  const b = parseInt(m.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
 
 function bgToStyle(bg: BackgroundState): CSSProperties {
   if (bg.type === 'default') return { background: 'var(--bg)' };
@@ -132,6 +124,12 @@ export function Stage({ onRequestScreen }: StageProps) {
     () => fitRect(outer.w, outer.h, asp.w, asp.h),
     [outer, asp]
   );
+
+  useEffect(() => {
+    if (baseFit.w === 0) return;
+    setRecordingRef('stageShell', shellRef.current);
+    return () => setRecordingRef('stageShell', null);
+  }, [baseFit.w]);
 
   useEffect(() => {
     const el = wrapRef.current;

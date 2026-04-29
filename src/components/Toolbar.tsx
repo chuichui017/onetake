@@ -21,7 +21,7 @@ import {
   react,
   type Editor,
 } from '@tldraw/tldraw';
-import { getTldrawEditor, subscribeTldrawEditor } from './TldrawCanvas';
+import { getTldrawEditor, subscribeTldrawEditor } from '@/lib/tldrawEditor';
 
 type LocalToolId =
   | 'select'

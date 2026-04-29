@@ -1,3 +1,4 @@
+import type { Editor } from '@tldraw/tldraw';
 import {
   buildPatternCanvas,
   createCompositor,
@@ -6,6 +7,10 @@ import {
   type VideoRect,
   type WebcamRect,
 } from './compositor';
+import {
+  createTldrawSnapshotter,
+  type TldrawSnapshotter,
+} from './tldrawSnapshot';
 
 export interface RecordingOptions {
   width: number;
@@ -15,6 +20,7 @@ export interface RecordingOptions {
   bgPattern: BgPattern | null;
   uploadedVideoEl: HTMLVideoElement | null;
   webcamVideoEl: HTMLVideoElement | null;
+  tldrawEditor: Editor | null;
   getVideoRect: () => VideoRect | null;
   getWebcamRect: () => WebcamRect | null;
 }
@@ -54,6 +60,7 @@ export async function startCompositeRecording(
     backgroundColor: options.backgroundColor,
     bgPattern: options.bgPattern,
     recordWithBackground: options.recordWithBackground,
+    tldrawEditor: options.tldrawEditor,
     getVideoRect: options.getVideoRect,
     getWebcamRect: options.getWebcamRect,
   });
@@ -217,6 +224,7 @@ export interface ScreenShareRecordingOptions {
   canvasRatio: '9:16' | '16:9' | '16:10' | '3:4' | '1:1';
   screenBorderRadius?: number;
   screenShadow?: { blur: number; offsetY: number; color: string } | null;
+  tldrawEditor: Editor | null;
 }
 
 export async function startScreenShareRecording(
@@ -247,6 +255,10 @@ export async function startScreenShareRecording(
 
   const bgPatternCanvas = options.bgPattern
     ? buildPatternCanvas(options.bgPattern, width, height)
+    : null;
+
+  const tldrawSnap: TldrawSnapshotter | null = options.tldrawEditor
+    ? createTldrawSnapshotter(options.tldrawEditor)
     : null;
 
   const roundedPath = (
@@ -451,6 +463,17 @@ export async function startScreenShareRecording(
       }
     }
 
+    if (tldrawSnap) {
+      const tlImg = tldrawSnap.getImage();
+      if (tlImg) {
+        try {
+          ctx.drawImage(tlImg, 0, 0, width, height);
+        } catch {
+          // image decode pending — skip frame
+        }
+      }
+    }
+
     if (shape === 'full' && wcEl) {
       drawWebcamCover(wcEl, 0, 0, width, height, 'square');
     } else if (shape !== 'hidden' && wcEl && pos) {
@@ -513,6 +536,7 @@ export async function startScreenShareRecording(
     canvasStream.getTracks().forEach((t) => t.stop());
     micStream?.getTracks().forEach((t) => t.stop());
     screenVideoEl.srcObject = null;
+    tldrawSnap?.dispose();
     if (canvas.parentNode) canvas.parentNode.removeChild(canvas);
   };
 
