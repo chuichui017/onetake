@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# OneTake
 
-## Getting Started
+> 极简录制工作台 · 录的时候就是成片
 
-First, run the development server:
+面向中文知识/AI 博主的浏览器内一体化讲解录制工具。白板、摄像头、提词器、屏幕分屏一键集成，所有合成与录制走浏览器原生 API（MediaRecorder + Canvas + getUserMedia），**无需服务端、无需安装任何软件**。
+
+## 功能
+
+- 🎬 **4 种场景预设**：讲解 / 演示·分屏 / 口播 / 纯板，一键切换
+- 🎨 **白板（tldraw）**：画笔、几何图形、便签、文本、橡皮擦、撤销，每个场景独立画板
+- 📷 **摄像头叠加**：圆形/方形/全屏/上下半屏多种形状，可拖拽、可加边框
+- 🖥️ **屏幕共享**：演示分屏模式下与人像合成
+- 🎥 **视频导入**：支持上传本地视频做画中画
+- 📝 **提词器**：可隐藏/可移动，按 Space 滚动
+- 🎨 **背景配色**：纯色 / 渐变 / 图案，全部可定制
+- ⏺️ **一键录制**：实时合成所有图层为 MP4 文件直接下载
+
+## 技术栈
+
+- Next.js 16 (App Router)
+- React 19
+- TypeScript
+- Tailwind CSS 4
+- tldraw 4
+- Zustand 5
+
+## 浏览器要求
+
+| 浏览器 | 支持度 |
+|---|---|
+| Chrome / Edge（最新版） | ✅ 完整支持 |
+| Safari（macOS，14.1+） | ✅ 完整支持 |
+| Firefox | ✅ 大部分场景可用 |
+| 移动端浏览器 | ❌ 不支持（缺屏幕共享 API + 屏幕太小） |
+
+录制功能依赖 `MediaRecorder` 和 `getDisplayMedia`，需要 **HTTPS** 环境（线上部署自动满足；本地开发用 `localhost` 也可）。
+
+## 隐私
+
+**所有数据只在你的浏览器里**：
+- 录制过程不上传任何视频数据
+- 偏好设置保存在 localStorage
+- 没有用户账号、没有云端、没有分析跟踪
+
+## 本地开发
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+打开 http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 构建
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm start
+```
 
-## Learn More
+## 许可
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+私有项目，暂未开源。
