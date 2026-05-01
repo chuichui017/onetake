@@ -295,6 +295,7 @@ body.theme-warm .dot-grid::before {
   border-color: var(--accent);
 }
 
+
 .scene-tab {
   display: inline-flex;
   align-items: center;
@@ -1603,7 +1604,10 @@ body.theme-indigo .header-video-progress {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  padding: 4px 0;
+  /* Horizontal padding leaves room for .swatch-active's 2px outer
+     box-shadow ring; without it, the leftmost swatch's ring is clipped
+     by .panel-section-body's overflow: hidden. */
+  padding: 4px 3px;
 }
 
 .swatch-row-base {

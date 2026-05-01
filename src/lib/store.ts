@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { scenes, type SceneId } from './scenes';
-import { getTldrawEditor } from './tldrawEditor';
+import { getTldrawEditor, switchToScenePage } from './tldrawEditor';
 import {
   type Layer,
   type LayerSource,
@@ -412,6 +412,11 @@ export const useStudio = create<StudioState>()(
       setScene: (id) => {
         const cur = get().scene;
         if (cur === id) return;
+
+        // Each scene maps to its own tldraw page, so shapes drawn in one
+        // scene don't appear in others.
+        const editor = getTldrawEditor();
+        if (editor) switchToScenePage(editor, id);
 
         const snapshot: SceneState = {
           videoFile: get().videoFile,
