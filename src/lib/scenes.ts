@@ -24,7 +24,7 @@ export const scenes: Record<SceneId, ScenePreset> = {
   },
   2: {
     id: 2,
-    name: '演示 · 分屏',
+    name: '共享屏幕',
     description: '屏幕共享 + 圆形人像',
     webcamShape: 'circle',
     webcamSize: 180,

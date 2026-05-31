@@ -102,7 +102,9 @@ export function CanvasHint({
   const videoFile = useStudio((s) => s.videoFile);
   const bgSource = useStudio((s) => s.bgSource);
   const hintDismissed = useStudio((s) => s.hintDismissed);
+  const hintCompact = useStudio((s) => s.hintCompact);
   const cameraState = useStudio((s) => s.cameraState);
+  const webcamShape = useStudio((s) => s.webcamShape);
   const background = useStudio((s) => s.background);
   const stageColor = useStudio((s) => s.stageColor);
   const { stream: screenStream } = useScreenShare();
@@ -110,11 +112,24 @@ export function CanvasHint({
   if (videoFile) return null;
   if (bgSource === 'screen' && screenStream) return null;
   if (hintDismissed) return null;
-  // Hide whenever the camera is on (preview or recording). Otherwise the
-  // hint card stays on top of the user's face after switching scenes —
-  // setScene resets hintDismissed, so without this check the prompt keeps
-  // re-appearing every time the user returns to a scene.
-  if (cameraState !== 'off') return null;
+  // 口播场景的摄像头默认占满整个画面（startKoubaoMode 会把人像设为 'full'），
+  // 提示卡叠在脸上会很违和——所以口播一开摄像头就直接隐藏整张提示。
+  if (scene === 3 && cameraState !== 'off') return null;
+  // 任意场景下，如果用户把人像设成 全屏 / 上半屏 / 下半屏，画面中央会被
+  // 摄像头覆盖，提示同样应该让位。
+  if (
+    cameraState !== 'off' &&
+    (webcamShape === 'full' ||
+      webcamShape === 'split-top' ||
+      webcamShape === 'split-bottom')
+  ) {
+    return null;
+  }
+
+  // 紧凑态：用户已经做过"配置"动作（改背景、调人像形状/大小/位置/边框/美颜、
+  // 开摄像头），不再渲染标题/描述/快捷键提示，只留下 3 个动作按钮当启动器。
+  // 口播场景的提示卡设计特殊（一个大组合按钮），不参与紧凑态切换。
+  const compact = hintCompact && scene !== 3;
 
   const dark = isStageDark(background, stageColor);
 
@@ -139,17 +154,45 @@ export function CanvasHint({
   };
 
   return (
-    <div className={`canvas-hint${dark ? ' dark' : ''}`} style={overlayStyle}>
-      {scene === 1 && <LectureHint />}
-      {scene === 2 && <SplitScreenHint onShare={triggerScreenShare} />}
+    <div
+      className={`canvas-hint${dark ? ' dark' : ''}${compact ? ' compact' : ''}`}
+      style={overlayStyle}
+    >
+      {scene === 1 && <LectureHint compact={compact} />}
+      {scene === 2 && (
+        <SplitScreenHint compact={compact} onShare={triggerScreenShare} />
+      )}
       {scene === 3 && <KoubaoHint />}
-      {scene === 4 && <WhiteboardHint />}
+      {scene === 4 && <WhiteboardHint compact={compact} />}
     </div>
   );
 }
 
-function WhiteboardHint() {
+function WhiteboardHint({ compact }: { compact: boolean }) {
   const dismissHint = useStudio((s) => s.dismissHint);
+
+  const actions = (
+    <div className="stage-hint-actions">
+      <CameraPreviewBtn />
+      <button className="stage-hint-btn primary" onClick={dismissHint}>
+        <span className="stage-hint-btn-icon">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="M12 19V6M5 12l7-7 7 7" />
+          </svg>
+        </span>
+        开始创作
+      </button>
+    </div>
+  );
+
+  if (compact) return actions;
 
   return (
     <>
@@ -179,29 +222,21 @@ function WhiteboardHint() {
           <kbd>R</kbd>矩形
         </span>
       </div>
-      <div className="stage-hint-actions">
-        <CameraPreviewBtn />
-        <button className="stage-hint-btn primary" onClick={dismissHint}>
-          <span className="stage-hint-btn-icon">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M12 19V6M5 12l7-7 7 7" />
-            </svg>
-          </span>
-          开始创作
-        </button>
-      </div>
+      {actions}
     </>
   );
 }
 
-function LectureHint() {
+function LectureHint({ compact }: { compact: boolean }) {
+  const actions = (
+    <div className="stage-hint-actions">
+      <CameraPreviewBtn />
+      <ImportVideoBtn />
+    </div>
+  );
+
+  if (compact) return actions;
+
   return (
     <>
       <div className="stage-hint-icon">
@@ -220,15 +255,42 @@ function LectureHint() {
       <h3 className="stage-hint-title">讲解模式</h3>
       <p className="stage-hint-desc">白板 + 人像，适合知识讲解</p>
 
-      <div className="stage-hint-actions">
-        <CameraPreviewBtn />
-        <ImportVideoBtn />
-      </div>
+      {actions}
     </>
   );
 }
 
-function SplitScreenHint({ onShare }: { onShare: () => void }) {
+function SplitScreenHint({
+  compact,
+  onShare,
+}: {
+  compact: boolean;
+  onShare: () => void;
+}) {
+  const actions = (
+    <div className="stage-hint-actions">
+      <CameraPreviewBtn />
+      <button className="stage-hint-btn primary" onClick={onShare}>
+        <span className="stage-hint-btn-icon">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <rect x="2" y="3" width="20" height="14" rx="2" />
+            <line x1="8" y1="21" x2="16" y2="21" />
+          </svg>
+        </span>
+        共享屏幕
+      </button>
+    </div>
+  );
+
+  if (compact) return actions;
+
   return (
     <>
       <div className="stage-hint-icon">
@@ -245,28 +307,10 @@ function SplitScreenHint({ onShare }: { onShare: () => void }) {
           <line x1="12" y1="18" x2="12" y2="22" />
         </svg>
       </div>
-      <h3 className="stage-hint-title">演示 · 分屏</h3>
+      <h3 className="stage-hint-title">共享屏幕</h3>
       <p className="stage-hint-desc">屏幕共享 + 人像讲解，适合教程录制</p>
 
-      <div className="stage-hint-actions">
-        <CameraPreviewBtn />
-        <button className="stage-hint-btn primary" onClick={onShare}>
-          <span className="stage-hint-btn-icon">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <rect x="2" y="3" width="20" height="14" rx="2" />
-              <line x1="8" y1="21" x2="16" y2="21" />
-            </svg>
-          </span>
-          共享屏幕
-        </button>
-      </div>
+      {actions}
       <p className="stage-hint-sub">点击选择一个窗口或整个屏幕</p>
     </>
   );

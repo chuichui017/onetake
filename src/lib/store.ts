@@ -143,6 +143,21 @@ const DEFAULT_VIDEO_CARD: VideoCard = {
   shadow: 'medium',
 };
 
+// 切到「从未访问过」的场景时用来重置背景，避免上一个场景的配色"漏"过来。
+// 已访问过的场景由 sceneStates 快照负责恢复，不走这里。
+const DEFAULT_BACKGROUND: BackgroundState = {
+  type: 'default',
+  value: '#FAFAFA',
+  pattern: null,
+  patternColor: '#09090B',
+  patternOpacity: 0.4,
+  patternBase: '#FAFAFA',
+  blurStrength: 40,
+  blurSaturation: 150,
+};
+
+const DEFAULT_STAGE_COLOR = '#FFFFFF';
+
 const VIDEO_SHADOWS_CSS: Record<
   VideoCardShadow,
   { blur: number; offsetY: number; color: string } | null
@@ -207,6 +222,13 @@ interface StudioState extends PersistedTele {
   customGradient: CustomGradient;
   toast: string | null;
   hintDismissed: boolean;
+  /**
+   * 用户做过"配置类编辑"（改背景、调人像形状/大小/位置/边框/美颜）后置 true。
+   * 此时 CanvasHint 切到紧凑态：只渲染动作按钮（上传视频/共享屏幕/开始创作）。
+   * 真正点了"开始创作"或开始创作内容（画白板/导入视频/共享屏幕）才会把
+   * hintDismissed 置 true 完全隐藏。
+   */
+  hintCompact: boolean;
 
   setScene: (id: SceneId) => void;
   setWebcamShape: (s: WebcamShape) => void;
@@ -337,6 +359,7 @@ const persisted = (s: StudioState): Partial<StudioState> => ({
   // 都会把它置 true），刷新后就别再弹出来打扰他。新用户首次打开时
   // localStorage 里没有这条，依然 false，所以引导照常出现。
   hintDismissed: s.hintDismissed,
+  hintCompact: s.hintCompact,
 });
 
 const DEFAULT_PANEL_COLLAPSED: PanelCollapsedMap = {
@@ -390,21 +413,13 @@ export const useStudio = create<StudioState>()(
       screenTransform: { scale: 1, x: 0, y: 0, fit: 'contain' },
       canvasZoom: 1,
       canvasPan: { x: 0, y: 0 },
-      background: {
-        type: 'default',
-        value: '#FAFAFA',
-        pattern: null,
-        patternColor: '#09090B',
-        patternOpacity: 0.4,
-        patternBase: '#FAFAFA',
-        blurStrength: 40,
-        blurSaturation: 150,
-      },
+      background: { ...DEFAULT_BACKGROUND },
       customGradient: { start: '#F5F3FF', end: '#DBEAFE', angle: 135 },
       toast: null,
       hintDismissed: false,
+      hintCompact: false,
       panelCollapsed: { ...DEFAULT_PANEL_COLLAPSED },
-      stageColor: '#FFFFFF',
+      stageColor: DEFAULT_STAGE_COLOR,
       recordWithBackground: true,
       videoCard: { ...DEFAULT_VIDEO_CARD },
       layers: createDefaultLayers(),
@@ -490,6 +505,7 @@ export const useStudio = create<StudioState>()(
             videoCard: { ...saved.videoCard },
             canvasSize: saved.canvasRatio,
             hintDismissed: false,
+            hintCompact: false,
             teleprompterVisible: false,
           });
           get().patchLayerByType('background', {
@@ -515,6 +531,7 @@ export const useStudio = create<StudioState>()(
           });
         } else {
           const p = scenes[id];
+          const freshBg: BackgroundState = { ...DEFAULT_BACKGROUND };
           set({
             scene: id,
             webcamShape: p.webcamShape,
@@ -523,7 +540,12 @@ export const useStudio = create<StudioState>()(
             bgSource: p.bgSource,
             canvasSize: '16:9',
             hintDismissed: false,
+            hintCompact: false,
             teleprompterVisible: false,
+            // 首次进入这个场景：重置背景到默认，断开跟上一个场景的关联。
+            // 之前没有这两行 → 上个场景的画板颜色会"漏"到新场景里。
+            background: freshBg,
+            stageColor: DEFAULT_STAGE_COLOR,
           });
           get().patchLayerByType('persona', {
             style: { shape: p.webcamShape },
@@ -536,13 +558,15 @@ export const useStudio = create<StudioState>()(
               get().videoPlaying
             ),
           });
+          get().patchLayerByType('background', {
+            source: buildBackgroundLayerSource(freshBg),
+          });
         }
       },
       setWebcamShape: (s) => {
-        set({ webcamShape: s });
+        set({ webcamShape: s, hintCompact: true });
         get().patchLayerByType('persona', { style: { shape: s } });
         if (s !== 'hidden') {
-          set({ hintDismissed: true });
           void startCamera()
             .then(() => {
               if (get().cameraState === 'off') {
@@ -555,13 +579,13 @@ export const useStudio = create<StudioState>()(
         }
       },
       setWebcamSize: (n) => {
-        set({ webcamSize: n });
+        set({ webcamSize: n, hintCompact: true });
         get().patchLayerByType('persona', {
           transform: { width: n, height: n },
         });
       },
       setCustomWebcamPos: (p) => {
-        set({ customWebcamPos: p });
+        set({ customWebcamPos: p, hintCompact: true });
         if (p) {
           get().patchLayerByType('persona', {
             transform: { x: p.left, y: p.top },
@@ -570,13 +594,13 @@ export const useStudio = create<StudioState>()(
       },
       setCanvasSize: (s) => set({ canvasSize: s }),
       setBorder: (patch) => {
-        set((st) => ({ border: { ...st.border, ...patch } }));
+        set((st) => ({ border: { ...st.border, ...patch }, hintCompact: true }));
         const next = get().border;
         get().patchLayerByType('persona', {
           style: { border: { enabled: next.enabled, color: next.color, width: 3 } },
         });
       },
-      setBeauty: (b) => set({ beauty: b }),
+      setBeauty: (b) => set({ beauty: b, hintCompact: true }),
       togglePanelCollapse: (key) =>
         set((st) => ({
           panelCollapsed: {
@@ -1102,7 +1126,7 @@ export const useStudio = create<StudioState>()(
           await startCamera();
           set((st) => ({
             cameraState: st.cameraState === 'off' ? 'preview' : st.cameraState,
-            hintDismissed: true,
+            hintCompact: true,
           }));
         } catch {
           get().showToast('无法访问摄像头');
@@ -1180,10 +1204,11 @@ export const useStudio = create<StudioState>()(
       setCanvasPan: (p) => set({ canvasPan: p }),
       resetCanvasView: () => set({ canvasZoom: 1, canvasPan: { x: 0, y: 0 } }),
       setBackground: (patch) => {
-        // 一旦用户调整了背景/配色，就视为"开始编辑"，自动收起场景空状态提示。
+        // 用户调整背景/配色 → 进入"紧凑提示"态：只显示 3 个动作按钮，
+        // 隐藏标题/描述（仍然能引导下一步：上传视频 / 共享屏幕 / 开始创作）。
         set((st) => ({
           background: { ...st.background, ...patch },
-          hintDismissed: true,
+          hintCompact: true,
         }));
         const bg = get().background;
         let source: LayerSource;
@@ -1216,7 +1241,7 @@ export const useStudio = create<StudioState>()(
         set({ customGradient: next });
         get().setBackground({ type: 'gradient', value });
       },
-      setStageColor: (color) => set({ stageColor: color, hintDismissed: true }),
+      setStageColor: (color) => set({ stageColor: color, hintCompact: true }),
       setRecordWithBackground: (v) => set({ recordWithBackground: v }),
       setVideoCard: (patch) =>
         set((st) => ({ videoCard: { ...st.videoCard, ...patch } })),
