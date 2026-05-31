@@ -2,6 +2,8 @@
 
 > 极简录制工作台 · 录的时候就是成片
 
+**🌐 在线体验:[https://onetake-963.pages.dev](https://onetake-963.pages.dev)** —— 打开即用，无需注册。
+
 面向中文知识/AI 博主的浏览器内一体化讲解录制工具。白板、摄像头、提词器、屏幕分屏一键集成，所有合成与录制走浏览器原生 API（MediaRecorder + Canvas + getUserMedia），**无需服务端、无需安装任何软件**。
 
 ## 功能
