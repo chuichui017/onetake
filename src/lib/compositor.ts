@@ -261,6 +261,8 @@ export interface CompositorConfig {
   tldrawEditor: Editor | null;
   getVideoRect: () => VideoRect | null;
   getWebcamRect: () => WebcamRect | null;
+  /** Beauty CSS filter string ('none' to disable). Applied to webcam only. */
+  webcamFilter?: string;
 }
 
 export interface Compositor {
@@ -403,6 +405,9 @@ export function createCompositor(config: CompositorConfig): Compositor {
           );
         }
         ctx.clip();
+        if (config.webcamFilter && config.webcamFilter !== 'none') {
+          ctx.filter = config.webcamFilter;
+        }
         try {
           ctx.drawImage(config.webcamVideoEl, rect.x, rect.y, rect.w, rect.h);
         } catch {

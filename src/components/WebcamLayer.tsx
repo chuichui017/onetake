@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStudio, type WebcamShape, type Pos } from '@/lib/store';
 import { useCamera } from '@/hooks/useCamera';
 import { setRecordingRef } from '@/lib/recordingRefs';
+import { getBeautyFilter } from '@/lib/utils';
 
 interface Rect {
   left: number;
@@ -134,6 +135,7 @@ export function WebcamLayer({
   const size = useStudio((s) => s.webcamSize);
   const customPos = useStudio((s) => s.customWebcamPos);
   const border = useStudio((s) => s.border);
+  const beauty = useStudio((s) => s.beauty);
   const hintDismissed = useStudio((s) => s.hintDismissed);
   const setCustomWebcamPos = useStudio((s) => s.setCustomWebcamPos);
   const startCameraPreview = useStudio((s) => s.startCameraPreview);
@@ -301,6 +303,7 @@ export function WebcamLayer({
             controls={false}
             disablePictureInPicture
             className="webcam-feed"
+            style={{ filter: getBeautyFilter(beauty) }}
           />
         ) : (
           shape !== 'hidden' && (

@@ -1,4 +1,38 @@
-import type { BackgroundState } from './store';
+import type { BackgroundState, BeautyMode } from './store';
+
+interface BeautyParams {
+  brightness: number;
+  saturate: number;
+  contrast: number;
+  /** Base blur radius in screen px; scaled up for recording output. */
+  blur: number;
+}
+
+// "自然加重" 预设：磨皮 + 提亮看得出来，但保持自然、不假。
+const BEAUTY_PARAMS: Record<BeautyMode, BeautyParams> = {
+  关闭: { brightness: 1, saturate: 1, contrast: 1, blur: 0 },
+  自然: { brightness: 1.1, saturate: 1.12, contrast: 0.95, blur: 1.0 },
+  明亮: { brightness: 1.2, saturate: 1.15, contrast: 0.94, blur: 1.0 },
+  柔光: { brightness: 1.12, saturate: 1.08, contrast: 0.9, blur: 2.0 },
+};
+
+/**
+ * 构建美颜的 CSS / Canvas `filter` 字符串（单一来源，预览与录制共用）。
+ * `blurScale` 用来缩放模糊半径：预览作用在小尺寸 DOM 元素上传 1；录制画在
+ * 输出分辨率的画布上，传 (输出 px / 屏幕 px)，让两者视觉强度一致。
+ */
+export function getBeautyFilter(beauty: BeautyMode, blurScale = 1): string {
+  if (beauty === '关闭') return 'none';
+  const p = BEAUTY_PARAMS[beauty] ?? BEAUTY_PARAMS['关闭'];
+  const parts = [
+    `brightness(${p.brightness})`,
+    `saturate(${p.saturate})`,
+    `contrast(${p.contrast})`,
+  ];
+  const blur = p.blur * blurScale;
+  if (blur > 0) parts.push(`blur(${blur.toFixed(2)}px)`);
+  return parts.join(' ');
+}
 
 export function hexToRgba(hex: string, alpha: number): string {
   const h = hex.replace('#', '');

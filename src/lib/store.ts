@@ -14,7 +14,7 @@ import {
   stopCamera as stopCameraStream,
   getCameraStream,
 } from '@/hooks/useCamera';
-import { hexToRgba } from './utils';
+import { hexToRgba, getBeautyFilter } from './utils';
 import { getRecordingRefs } from './recordingRefs';
 
 export type WebcamShape =
@@ -841,6 +841,7 @@ export const useStudio = create<StudioState>()(
               screenBorderRadius,
               screenShadow,
               tldrawEditor: getTldrawEditor(),
+              webcamFilter: getBeautyFilter(get().beauty, scaleForShadow),
             });
             const timer = setInterval(() => {
               const s = get().recordingStartTime;
@@ -1037,6 +1038,7 @@ export const useStudio = create<StudioState>()(
             tldrawEditor: getTldrawEditor(),
             getVideoRect,
             getWebcamRect,
+            webcamFilter: getBeautyFilter(get().beauty, scaleX),
           });
 
           const timer = setInterval(() => {

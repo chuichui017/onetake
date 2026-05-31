@@ -23,6 +23,7 @@ export interface RecordingOptions {
   tldrawEditor: Editor | null;
   getVideoRect: () => VideoRect | null;
   getWebcamRect: () => WebcamRect | null;
+  webcamFilter?: string;
 }
 
 export interface Recording {
@@ -63,6 +64,7 @@ export async function startCompositeRecording(
     tldrawEditor: options.tldrawEditor,
     getVideoRect: options.getVideoRect,
     getWebcamRect: options.getWebcamRect,
+    webcamFilter: options.webcamFilter,
   });
 
   compositor.start();
@@ -225,6 +227,7 @@ export interface ScreenShareRecordingOptions {
   screenBorderRadius?: number;
   screenShadow?: { blur: number; offsetY: number; color: string } | null;
   tldrawEditor: Editor | null;
+  webcamFilter?: string;
 }
 
 export async function startScreenShareRecording(
@@ -361,6 +364,9 @@ export async function startScreenShareRecording(
       return;
     }
     ctx.save();
+    if (options.webcamFilter && options.webcamFilter !== 'none') {
+      ctx.filter = options.webcamFilter;
+    }
     ctx.beginPath();
     if (shape === 'circle') {
       const cx = x + w / 2;
