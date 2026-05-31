@@ -302,6 +302,11 @@ export function WebcamLayer({
             muted
             controls={false}
             disablePictureInPicture
+            // HTML5 D&D is disabled so extensions like Eagle don't hijack
+            // the cursor-drag gesture (used for repositioning the webcam)
+            // by offering to save the video frame.
+            draggable={false}
+            onDragStart={(e) => e.preventDefault()}
             className="webcam-feed"
             style={{ filter: getBeautyFilter(beauty) }}
           />
@@ -324,15 +329,15 @@ export function WebcamLayer({
           <button
             type="button"
             className="webcam-close-overlay"
-            style={{ borderRadius: rect.radius }}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               stopCamera();
             }}
+            title="关闭摄像头"
             aria-label="关闭摄像头"
           >
-            ✕ 关闭摄像头
+            ✕
           </button>
         )}
       </div>

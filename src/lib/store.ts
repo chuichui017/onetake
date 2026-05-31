@@ -333,10 +333,10 @@ const persisted = (s: StudioState): Partial<StudioState> => ({
   stageColor: s.stageColor,
   videoCard: s.videoCard,
   screenTransform: s.screenTransform,
-  // hintDismissed intentionally NOT persisted — every refresh should
-  // re-surface the canvas hint as a fresh-session affordance. It still
-  // dismisses normally within the session via dismissHint / picking a
-  // webcam shape / starting the camera.
+  // 一旦用户在某次会话里"开始编辑过"（手动关掉提示、改了配色、画过白板…
+  // 都会把它置 true），刷新后就别再弹出来打扰他。新用户首次打开时
+  // localStorage 里没有这条，依然 false，所以引导照常出现。
+  hintDismissed: s.hintDismissed,
 });
 
 const DEFAULT_PANEL_COLLAPSED: PanelCollapsedMap = {
@@ -1180,7 +1180,11 @@ export const useStudio = create<StudioState>()(
       setCanvasPan: (p) => set({ canvasPan: p }),
       resetCanvasView: () => set({ canvasZoom: 1, canvasPan: { x: 0, y: 0 } }),
       setBackground: (patch) => {
-        set((st) => ({ background: { ...st.background, ...patch } }));
+        // 一旦用户调整了背景/配色，就视为"开始编辑"，自动收起场景空状态提示。
+        set((st) => ({
+          background: { ...st.background, ...patch },
+          hintDismissed: true,
+        }));
         const bg = get().background;
         let source: LayerSource;
         if (bg.type === 'default') {
@@ -1212,7 +1216,7 @@ export const useStudio = create<StudioState>()(
         set({ customGradient: next });
         get().setBackground({ type: 'gradient', value });
       },
-      setStageColor: (color) => set({ stageColor: color }),
+      setStageColor: (color) => set({ stageColor: color, hintDismissed: true }),
       setRecordWithBackground: (v) => set({ recordWithBackground: v }),
       setVideoCard: (patch) =>
         set((st) => ({ videoCard: { ...st.videoCard, ...patch } })),

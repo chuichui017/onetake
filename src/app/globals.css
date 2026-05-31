@@ -428,6 +428,11 @@ body.theme-indigo .record-btn.recording {
   object-fit: cover;
   transform: scaleX(-1);
   display: block;
+  /* Disable native HTML5 drag-to-save so browser extensions (Eagle,
+     Pinterest etc.) don't intercept the reposition gesture on the video. */
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .webcam-layer.no-perm {
@@ -3216,26 +3221,35 @@ body.theme-indigo .header-video-progress {
   border-color: #18181B;
 }
 
+/* Small close button in the top-right corner. Previously this overlay
+   filled the entire webcam (inset: 0) and swallowed pointerdown via
+   stopPropagation, which blocked the drag-to-reposition gesture once
+   the camera was on. The compact corner button leaves the rest of the
+   webcam draggable. */
 .webcam-close-overlay {
   position: absolute;
-  inset: 0;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.55);
   color: #fff;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
   cursor: pointer;
   z-index: 5;
-  transition: opacity 0.18s ease;
+  transition: background 0.15s ease, transform 0.15s ease;
   border: none;
+  border-radius: 50%;
   padding: 0;
-  width: 100%;
-  height: 100%;
 }
 
 .webcam-close-overlay:hover {
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.78);
+  transform: scale(1.06);
 }
 

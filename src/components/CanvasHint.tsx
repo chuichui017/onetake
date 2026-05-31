@@ -102,6 +102,7 @@ export function CanvasHint({
   const videoFile = useStudio((s) => s.videoFile);
   const bgSource = useStudio((s) => s.bgSource);
   const hintDismissed = useStudio((s) => s.hintDismissed);
+  const cameraState = useStudio((s) => s.cameraState);
   const background = useStudio((s) => s.background);
   const stageColor = useStudio((s) => s.stageColor);
   const { stream: screenStream } = useScreenShare();
@@ -109,6 +110,11 @@ export function CanvasHint({
   if (videoFile) return null;
   if (bgSource === 'screen' && screenStream) return null;
   if (hintDismissed) return null;
+  // Hide whenever the camera is on (preview or recording). Otherwise the
+  // hint card stays on top of the user's face after switching scenes —
+  // setScene resets hintDismissed, so without this check the prompt keeps
+  // re-appearing every time the user returns to a scene.
+  if (cameraState !== 'off') return null;
 
   const dark = isStageDark(background, stageColor);
 
